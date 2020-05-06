@@ -1,7 +1,9 @@
 \documentclass[11pt,a4paper]{article}
 \usepackage{isabelle,isabellesym}
 
-\usepackage[left=20mm, right=20mm]{geometry}
+\usepackage{minted}
+
+\newcommand{\rust}[1]{\mintinline{rust}{#1}}
 
 % for derivation trees
 \usepackage{mathpartir}
@@ -12,7 +14,7 @@
 % further packages required for unusual symbols (see also
 % isabellesym.sty), use only when needed
 
-%\usepackage{amssymb}
+\usepackage{amssymb}
   %for \<leadsto>, \<box>, \<diamond>, \<sqsupset>, \<mho>, \<Join>,
   %\<lhd>, \<lesssim>, \<greatersim>, \<lessapprox>, \<greaterapprox>,
   %\<triangleq>, \<yen>, \<lozenge>
@@ -56,8 +58,8 @@
 \input{session}
 
 % optional bibliography
-%\bibliographystyle{abbrv}
-%\bibliography{root}
+\bibliographystyle{abbrv}
+\bibliography{root}
 
 \end{document}
 

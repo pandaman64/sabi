@@ -1,4 +1,5 @@
 (* Taken from HOL/IMP/Star *)
+(*<*)
 theory Star
   imports Main
 begin
@@ -13,7 +14,7 @@ hide_fact (open) refl step  \<comment> \<open>names too generic\<close>
 
 lemma star_trans:
   "star r x y \<Longrightarrow> star r y z \<Longrightarrow> star r x z"
-proof(induction rule: star.induct)
+proof(induction rule: star.induct) \<^marker>\<open>tag invisible\<close>
   case refl thus ?case .
 next
   case step thus ?case by (metis star.step)
@@ -25,8 +26,9 @@ lemmas star_induct =
 declare star.refl[simp,intro]
 
 lemma star_step1[simp, intro]: "r x y \<Longrightarrow> star r x y"
-by(metis star.refl star.step)
+by(metis star.refl star.step) \<^marker>\<open>tag invisible\<close>
 
-code_pred star .
+code_pred star . \<^marker>\<open>tag invisible\<close>
 
 end
+(*>*)
