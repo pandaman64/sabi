@@ -26,9 +26,9 @@ lemmas star_induct =
 declare star.refl[simp,intro]
 
 lemma star_step1[simp, intro]: "r x y \<Longrightarrow> star r x y"
-by(metis star.refl star.step) \<^marker>\<open>tag invisible\<close>
+by(metis star.refl star.step)
 
-code_pred star . \<^marker>\<open>tag invisible\<close>
+code_pred [show_modes] star .
 
 end
 (*>*)
