@@ -6,23 +6,24 @@ section \<open>Semantics of Commands\<close>
 
 text \<open>This section describes the small-step semantics of commands.
 The configuration of an execution consists of:
-\<^item> the variable environment $\Gamma$ (of type @{type gamma});
+\<^item> the tags issued $T$ (of type @{type tags});
 \<^item> the heap $H$ (of type @{type heap}) which holds the actual data and the reborrow trees
   for each address; and
 \<^item> the command to be executed $c$ (of type @{type com}).
+The variable environment $\Gamma$ (of type @{type gamma}) is fixed throughout the execution.
 \<close>
 
 type_synonym config = "tags * heap * com"
-inductive com_sem :: "gamma \<Rightarrow> config \<Rightarrow> config \<Rightarrow> bool" ("(_ \<turnstile> _ \<rightarrow> _)")
+inductive com_sem :: "gamma \<Rightarrow> config \<Rightarrow> config \<Rightarrow> bool" ("(_ \<turnstile> _ \<rightarrow> _)") for \<Gamma>
 where
-  Assign: "\<lbrakk>\<Gamma>; H \<turnstile> p \<Down>\<^sub>p (refs, Reference a t); list_all (writable H) refs; writable H (a, t);
-            H' = kill_all refs H; (\<Gamma>, T, H', rv) \<Down> (T', H'', v); H'' ! a = (_, ts)\<rbrakk>
-           \<Longrightarrow> \<Gamma> \<turnstile> (T, H, p ::= rv) \<rightarrow> (T', H''[a := (v, kill t ts)], Skip)" |
+  Assign: "\<lbrakk>\<Gamma> \<turnstile>\<^sub>w (H, p) \<Down>\<^sub>p (H', Reference a t); writable H' (a, t); H'' = kill_heap (a, t) H';
+            \<Gamma> \<turnstile> (T, H'', rv) \<Down> (T', H''', v); H''' ! a = (_, ts)\<rbrakk>
+           \<Longrightarrow> \<Gamma> \<turnstile> (T, H, p ::= rv) \<rightarrow> (T', H''[a := (v, ts)], Skip)" |
   SeqL: "\<Gamma> \<turnstile> (T, H, Skip;; c) \<rightarrow> (T, H, c)" |
   SeqR: "\<Gamma> \<turnstile> (T, H, c1) \<rightarrow> (T', H', c') \<Longrightarrow> \<Gamma> \<turnstile> (T, H, c1;; c2) \<rightarrow> (T', H', c';; c2)" |
-  IfTrue: "(\<Gamma>, T, H, b) \<Down> (T', H', VBool True)
+  IfTrue: "\<Gamma> \<turnstile> (T, H, b) \<Down> (T', H', VBool True)
            \<Longrightarrow> \<Gamma> \<turnstile> (T, H, IF b THEN c1 ELSE c2) \<rightarrow> (T', H', c1)" |
-  IfFalse: "(\<Gamma>, T, H, b) \<Down> (T', H', VBool False)
+  IfFalse: "\<Gamma> \<turnstile> (T, H, b) \<Down> (T', H', VBool False)
            \<Longrightarrow> \<Gamma> \<turnstile> (T, H, IF b THEN c1 ELSE c2) \<rightarrow> (T', H', c2)" |
   While: "\<Gamma> \<turnstile> (T, H, WHILE b DO c) \<rightarrow> (T, H, IF b THEN (c;; WHILE b DO c) ELSE Skip)"
 
@@ -49,8 +50,11 @@ text \<open>
 Figure \ref{fig:com} shows the assignment rules. Other commands are standard.
 
 The {\sc{Assign}} rule assigns a value to the the location.
-To assign through a reference, the reference must be valid for writes.
-Moreover, the write is considered as a use of the reference; it will invalidate the child references.
+First, \<^term>\<open>\<Gamma> \<turnstile>\<^sub>w (H, p) \<Down>\<^sub>p (H', Reference a t)\<close> computes the location with write modifier.
+Next, \<^term>\<open>writable H' (a, t)\<close> and \<^term>\<open>H'' = kill_heap (a, t) H'\<close> assert that the reference is
+writable and unique. Note that this assertion is made \<^emph>\<open>before\<close> the evaluation of the right hand side.
+This means Unique does not support Two Phase Borrows currently.
+Finally, we compute the right hand side and assigns the result to the location.
 
 \begin{figure}[h]
 \centering
@@ -82,80 +86,70 @@ qed auto
 
 lemma com_sem_det: "\<Gamma> \<turnstile> cfg \<rightarrow> cfg' \<Longrightarrow> \<Gamma> \<turnstile> cfg \<rightarrow> cfg'' \<Longrightarrow> cfg'' = cfg'"
 proof (induction arbitrary: cfg'' rule: com_sem.induct)
-  case (Assign \<Gamma> H p refs a t H' T rv T' H'' v uu ts)
+  case (Assign H p H' a t H'' T rv T' H''' v uu ts)
   show ?case
   proof (rule ComE(1))
     show "\<Gamma> \<turnstile> (T, H, p ::= rv) \<rightarrow> cfg''" using Assign.prems by simp
   next
-    fix refsa aa ta T'a H''a va uuu tsa
-
-    assume "\<Gamma>; H \<turnstile> p \<Down>\<^sub>p (refsa, Reference aa ta)"
-    then have "refsa = refs \<and> aa = a \<and> ta = t" using Assign.hyps place_sem_det' by blast
-    then have refs: "refsa = refs" and "aa = a" and "ta = t" by auto
-
+    fix H'a aa ta T'a H'''a va uua tsa
+    let ?killed = "(case H'a ! aa of (v, ts) \<Rightarrow> H'a[aa := (v, kill ta ts)]) :: heap"
+    assume "\<Gamma> \<turnstile>\<^sub>w (H, p) \<Down>\<^sub>p (H'a, Reference aa ta)"
+    then have "H'a = H' \<and> aa = a \<and> ta = t" using Assign.hyps place_sem_det' by fastforce
     moreover
-    assume "(\<Gamma>, T, kill_all refsa H, rv) \<Down> (T'a, H''a, va)"
-    then have "(\<Gamma>, T, H', rv) \<Down> (T'a, H''a, va)" using Assign.hyps refs by simp
-    then have "T'a = T' \<and> H''a = H'' \<and> va = v" using Assign.hyps rvalue_sem_det by blast
-    then have "T'a = T'" and "H''a = H''" and "va = v" by auto
-
+    have "?killed = H''" using Assign.hyps calculation by simp
     moreover
-    assume "H''a ! aa = (uuu, tsa)"
-    then have "tsa = ts" using \<open>H''a = H''\<close> \<open>aa = a\<close> Assign.hyps by auto
-
+    assume "\<Gamma> \<turnstile> (T, ?killed, rv) \<Down> (T'a, H'''a, va)"
+    then have "\<Gamma> \<turnstile> (T, H'', rv) \<Down> (T'a, H'''a, va)" using calculation by simp
+    then have "T'a = T' \<and> H'''a = H''' \<and> va = v" using Assign.hyps(4) rvalue_sem_det by fastforce
     moreover
-    assume "cfg'' = (T'a, H''a[aa := (va, kill ta tsa)], Skip)"
-    then show ?thesis using calculation by auto
+    assume "H'''a ! aa = (uua, tsa)"
+    then have "tsa = ts" by (simp add: Assign.hyps(5) calculation(1) calculation(3))
+    moreover
+    assume "cfg'' = (T'a, ?killed[aa := (va, tsa)], Skip)"
+    thus ?thesis using calculation by simp
   qed
 next
-  case (SeqL \<Gamma> T H c)
-  then show ?case
-    by (meson ComE(3) skip_final)
+  case (SeqL T H c)
+  then show ?case by (meson ComE(3) skip_final)
 next
-  case (SeqR \<Gamma> T H c1 T' H' c' c2)
-  then show ?case
-    by (metis ComE(3) old.prod.inject skip_final)
+case (SeqR T H c1 T' H' c' c2)
+  then show ?case by (metis ComE(3) prod.inject skip_final)
 next
-  case (IfTrue \<Gamma> T H b T' H' c1 c2)
+  case (IfTrue T H b T' H' c1 c2)
   show ?case
   proof (rule ComE(4))
     show "\<Gamma> \<turnstile> (T, H, IF b THEN c1 ELSE c2) \<rightarrow> cfg''" using IfTrue.prems by simp
   next
     fix T'a H'a
-    assume "(\<Gamma>, T, H, b) \<Down> (T'a, H'a, VBool True)"
-    then have "T'a = T'" and "H'a = H'" using rvalue_sem_det IfTrue.hyps by auto
-
-    assume "cfg'' = (T'a, H'a, c1)"
-    thus ?thesis using \<open>T'a = T'\<close> \<open>H'a = H'\<close> by simp
+    assume "\<Gamma> \<turnstile> (T, H, b) \<Down> (T'a, H'a, VBool True)"
+    then have "T'a = T' \<and> H'a = H'" using IfTrue.hyps rvalue_sem_det by simp
+    moreover assume "cfg'' = (T'a, H'a, c1)"
+    thus ?thesis using calculation by simp
   next
     fix T'a H'a
-    assume "(\<Gamma>, T, H, b) \<Down> (T'a, H'a, VBool False)"
-    then have False using rvalue_sem_det IfTrue.hyps by blast
-    thus ?thesis by simp
+    assume "\<Gamma> \<turnstile> (T, H, b) \<Down> (T'a, H'a, VBool False)"
+    then show ?thesis using IfTrue.hyps rvalue_sem_det by blast
   qed
 next
-  case (IfFalse \<Gamma> T H b T' H' c1 c2)
+  case (IfFalse T H b T' H' c1 c2)
   show ?case
   proof (rule ComE(4))
     show "\<Gamma> \<turnstile> (T, H, IF b THEN c1 ELSE c2) \<rightarrow> cfg''" using IfFalse.prems by simp
   next
     fix T'a H'a
-    assume "(\<Gamma>, T, H, b) \<Down> (T'a, H'a, VBool False)"
-    then have "T'a = T'" and "H'a = H'" using rvalue_sem_det IfFalse.hyps by auto
-
-    assume "cfg'' = (T'a, H'a, c2)"
-    thus ?thesis using \<open>T'a = T'\<close> \<open>H'a = H'\<close> by simp
+    assume "\<Gamma> \<turnstile> (T, H, b) \<Down> (T'a, H'a, VBool False)"
+    then have "T'a = T' \<and> H'a = H'" using IfFalse.hyps rvalue_sem_det by simp
+    moreover assume "cfg'' = (T'a, H'a, c2)"
+    thus ?thesis using calculation by simp
   next
     fix T'a H'a
-    assume "(\<Gamma>, T, H, b) \<Down> (T'a, H'a, VBool True)"
-    then have False using rvalue_sem_det IfFalse.hyps by blast
-    thus ?thesis by simp
+    assume "\<Gamma> \<turnstile> (T, H, b) \<Down> (T'a, H'a, VBool True)"
+    then show ?thesis using IfFalse.hyps rvalue_sem_det by blast
   qed
 next
-  case (While \<Gamma> T H b c)
-  then show ?case by auto
+  case (While T H b c)
+then show ?case by auto
 qed
-
 lemmas star_induct' = star.induct[of "com_sem \<Gamma>", split_format(complete)] \<^marker>\<open>tag invisible\<close>
 
 text \<open>We show the transitivity of @{const com_sem_steps}.\<close>
@@ -190,11 +184,6 @@ fun preallocate :: "vname list \<Rightarrow> gamma * tags * heap" where
 
 value "preallocate [''x'', ''y'']"
 value "map (fst (preallocate [''x'', ''y''])) [''x'', ''y'']"
-
-fun prealloc_com_sem :: "vname list \<Rightarrow> com \<Rightarrow> config \<Rightarrow> bool"
-  ("(_; _ \<rightarrow>\<^sup>* _)") where
-  "(xs; c \<rightarrow>\<^sup>* cfg) =
-   (let (\<Gamma>, T, H) = preallocate xs in (\<Gamma> \<turnstile> (T, H, c) \<rightarrow>\<^sup>* cfg))"
 
 text \<open>Let Isabelle run Unique programs by generating code for the semantics.\<close>
 

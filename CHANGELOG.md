@@ -1,5 +1,21 @@
 # Unreleased
 
+# 2020/05/14 "MIRification Continued"
+## Added
+
+- Added heap access modifier to the semantics of place
+  - Modifier denotes how the access changes the reborrow tree
+
+## Changed
+
+- Explicitly mentioned fixed parameters (such as gamma) in the predicate
+  - This could give us more useful induction formula
+  - The fixed parameters are placed left to the turnstile in the semantics
+
+## Learned
+
+- Add `for` to inductive predicate for fixed parameters
+
 # 2020/05/13 "The Great MIRification"
 ## Added
 
