@@ -4,7 +4,7 @@ begin
 
 datatype rust_error = invalid_ref
 
-type_synonym tag = ref
+type_synonym tag = nat
 datatype val = int_val int
 record tagged_ref = 
   pointer :: ref
@@ -13,6 +13,7 @@ record tagged_ref =
 record globals_ram =
   memory :: "val list"
   tags :: "tag list list" (* `tag set list list` in the presence of shared pointer *)
+  issued_tags :: "tag list"
 
 fun wf_tags :: "tag list list \<Rightarrow> bool" where
   "wf_tags [] = True" |
@@ -43,8 +44,71 @@ next
   show ?case using 1 2 by (rule iffI)
 qed
 
+lemma [simp, intro]: "\<lbrakk>wf_tags ts; x \<noteq> []\<rbrakk> \<Longrightarrow> wf_tags (ts @ [x])"
+proof (induction ts)
+  case Nil
+  then show ?case by (simp add: wf_tags_spec)
+next
+  case (Cons a ts)
+  then show ?case by (simp add: wf_tags_spec)
+qed
+
+fun collect_tags :: "tag list list \<Rightarrow> tag set" where
+  "collect_tags ts = foldr (\<lambda>ts accum. set ts \<union> accum) ts {}"
+lemma collect_tags_spec: "t \<in> collect_tags ts \<longleftrightarrow> (\<exists>i < length ts. t \<in> set (ts ! i))"
+proof (induction ts)
+  case Nil
+  then show ?case by simp
+next
+  case (Cons h ts)
+  have 1: "collect_tags (h # ts) = set h \<union> collect_tags ts" by simp
+
+  show ?case
+  proof
+    assume "t \<in> collect_tags (h # ts)"
+    then have 2: "t \<in> set h \<or> t \<in> collect_tags ts" using 1 by simp
+    thus "\<exists>i < length (h # ts). t \<in> set ((h # ts) ! i)"
+    proof (cases rule: disjE[OF 2])
+      case 1
+      then show ?thesis by auto
+    next
+      case 2
+      then show ?thesis using Cons.IH by auto
+    qed
+  next
+    assume "\<exists>i < length (h # ts). t \<in> set ((h # ts) ! i)"
+    then obtain i where
+      3: "i < length (h # ts)" and
+      4: "t \<in> set ((h # ts) ! i)"
+      by auto
+    thus "t \<in> collect_tags (h # ts)"
+    proof (cases "i = 0")
+      case True
+      then show ?thesis using 4 by auto
+    next
+      case False
+      then have "t \<in> set (ts ! (i - 1))" using 4 by auto
+      then show ?thesis using 3 Cons.IH \<open>i \<noteq> 0\<close> by auto
+    qed
+  qed
+qed
+
+lemma collect_tags_update[simp, intro]: "t \<in> collect_tags (ts[p := x]) \<Longrightarrow> t \<in> collect_tags ts \<or> t \<in> set x"
+  by (metis collect_tags_spec length_list_update nth_list_update nth_list_update_neq)
+
+lemma [simp, intro]: "collect_tags (ts @ [t]) = set t \<union> (collect_tags ts)"
+proof (induction ts)
+qed auto
+
+lemma [simp, intro]: "finite (collect_tags ts)"
+proof (induction ts)
+qed simp+
+
 fun wf_heap :: "'a globals_ram_scheme \<Rightarrow> bool" where
-  "wf_heap s \<longleftrightarrow> length (memory s) = length (tags s) \<and> wf_tags (tags s)"
+  "wf_heap s \<longleftrightarrow>
+    length (memory s) = length (tags s)
+    \<and> wf_tags (tags s)
+    \<and> collect_tags (tags s) \<subseteq> set (issued_tags s)"
 
 (* when we use a unique reference, invalidate all children *)
 fun invalidate_children :: "tagged_ref \<Rightarrow> 'a globals_ram_scheme \<Rightarrow> 'a globals_ram_scheme" where
@@ -97,71 +161,27 @@ lemma memwrite_tags:
   shows "tags s' = tags s"
   by (simp add: assms)
 
-fun collect_tags :: "tag list list \<Rightarrow> tag set" where
-  "collect_tags [] = {}" |
-  "collect_tags (h # t) = set h \<union> collect_tags t"
+fun new_tag :: "'a globals_ram_scheme \<Rightarrow> tag" where
+  "new_tag s = fold (\<lambda>t accum. max t accum) (issued_tags s) 0 + 1"
 
-lemma collect_tags_spec: "t \<in> collect_tags ts \<longleftrightarrow> (\<exists>i < length ts. t \<in> set (ts ! i))"
-proof (induction ts)
-  case Nil
-  then show ?case by simp
-next
-  case (Cons h ts)
+fun_cases new_tag_elims: "new_tag s = t"
 
-  show "t \<in> collect_tags (h # ts) \<longleftrightarrow> (\<exists>i < length (h # ts). t \<in> set ((h # ts) ! i))"
-  proof
-    assume assms: "t \<in> collect_tags (h # ts)"
-    thus "\<exists>i < length (h # ts). t \<in> set ((h # ts) ! i)"
-    proof (cases "t \<in> set h" "t \<in> collect_tags ts" rule: disjE)
-      show "t \<in> set h \<or> t \<in> collect_tags ts" using assms by auto
-    next
-      case 2
-      then show ?thesis by auto
-    next
-      case 3
-      then show ?thesis using Cons.IH by auto
-    qed
-  next
-    assume "\<exists>i < length (h # ts). t \<in> set ((h # ts) ! i)"
-    then obtain i where 
-      1: "t \<in> set ((h # ts) ! i)" and
-      2: "i < length (h # ts)"
-      by auto
+lemma [simp, intro]: "new_tag s = t \<Longrightarrow> t \<notin> set (issued_tags s)"
+  apply (erule new_tag_elims)
+  by (metis List.finite_set Max.set_eq_fold Max_ge insert_iff lessI list.set(2) not_le)
 
-    show "t \<in> collect_tags (h # ts)"
-    proof (cases i)
-      case 0
-      then show ?thesis using 1 by auto
-    next
-      case (Suc i')
-      then show ?thesis using 1 2 Cons.IH by auto
-    qed
-  qed
-qed
-
-lemma [simp, intro]: "finite (collect_tags ts)"
-proof (induction ts)
-  case Nil
-  then show ?case by simp
-next
-  case (Cons h ts)
-  then show ?case by simp
-qed
-
-definition new_tag :: "'a globals_ram_scheme \<Rightarrow> tag" where
-  "new_tag s = new (collect_tags (tags s))"
-
-lemma "\<lbrakk>t = new_tag s; r < length (tags s)\<rbrakk> \<Longrightarrow> t \<notin> set (tags s ! r)"
+lemma
+  assumes
+    "wf_heap s"
+    "new_tag s = t"
+    "r < length (tags s)"
+  shows "t \<notin> set (tags s ! r)"
 proof -
-  let ?ts = "collect_tags (tags s)"
-
-  assume "t = new_tag s"
-  then have "t \<notin> ?ts" by (simp add: new_tag_def)
-  then have it: "\<not>(\<exists>i < length (tags s). t \<in> set ((tags s) ! i))"
+  have "t \<notin> set (issued_tags s)" using assms by auto
+  then have "t \<notin> collect_tags (tags s)" using assms by auto
+  then have "\<not>(\<exists>i < length (tags s). t \<in> set ((tags s) ! i))"
     using collect_tags_spec by auto
-
-  assume "r < length (tags s)"
-  thus ?thesis using it by auto
+  thus ?thesis using assms by auto
 qed
 
 fun writable :: "tagged_ref \<Rightarrow> 'a globals_ram_scheme \<Rightarrow> bool" where
@@ -186,7 +206,8 @@ fun heap_new :: "val \<Rightarrow> 'a globals_ram_scheme \<Rightarrow> tagged_re
   "heap_new v s = 
     (let p = new_pointer s;
          t = new_tag s in
-    (\<lparr> pointer = p, tag = t \<rparr>, s\<lparr> memory := memory s @ [v], tags := tags s @ [[t]]\<rparr>))"
+    (\<lparr> pointer = p, tag = t \<rparr>,
+     s\<lparr> memory := memory s @ [v], tags := tags s @ [[t]], issued_tags := issued_tags s @ [t]\<rparr>))"
 
 fun_cases heap_new_elims: "heap_new v s = (r, s')"
 
@@ -196,39 +217,32 @@ lemma heap_new_writable: "\<lbrakk>wf_heap s; heap_new v s = (r', s')\<rbrakk> \
 
 lemma heap_new_wf_heap_update: "\<lbrakk>wf_heap s; heap_new v s = (r', s')\<rbrakk> \<Longrightarrow> wf_heap s'"
   apply (erule heap_new_elims)
-  apply (auto simp: Let_def)
-  using wf_tags_spec by auto
+  by (auto simp add: Let_def simp del: collect_tags.simps)
 
 fun reborrow :: "tagged_ref \<Rightarrow> 'a globals_ram_scheme \<Rightarrow> tagged_ref * 'a globals_ram_scheme" where
   "reborrow r s =
     (let p = Rep_ref (pointer r) in
     let t = new_tag s in
     let tags = (tags s)[p := (tags s) ! p @ [t]] in
-    (\<lparr> pointer = pointer r, tag = t \<rparr>, s\<lparr> tags := tags \<rparr>))"
+    (\<lparr> pointer = pointer r, tag = t \<rparr>, s\<lparr> tags := tags, issued_tags := issued_tags s @ [t] \<rparr>))"
 
 fun_cases reborrow_elims: "reborrow r s = (r', s')"
-lemma reborrow_elims':
-  "\<lbrakk>reborrow r s = (r', s');
-    ((let p = Rep_ref (pointer r);
-         t = new_tag s in
-    r' = \<lparr> pointer = pointer r, tag = t \<rparr> \<and> s' = s\<lparr> tags := (tags s)[p := tags s ! p @ [t]] \<rparr>)
-    \<Longrightarrow> P)\<rbrakk>
-  \<Longrightarrow> P"
-  apply (erule reborrow_elims)
-  by (meson prod.inject)
 
 lemma reborrow_pointer: "reborrow r s = (r', s') \<Longrightarrow> pointer r' = pointer r"
-  apply (erule reborrow_elims')
-  by (metis tagged_ref.select_convs(1))
+  apply (erule reborrow_elims)
+  by (auto simp: Let_def)
 
 lemma "\<lbrakk>wf_heap s; writable r s; reborrow r s = (r', s')\<rbrakk> \<Longrightarrow> wf_heap s'"
-  apply (erule reborrow_elims')
-  apply (simp add: Let_def)
-  by (metis Nil_is_append_conv basic_trans_rules(31) insertE 
-      not_Cons_self set_update_subset_insert wf_tags_spec)
+  apply (erule reborrow_elims)
+  apply (auto simp add: Let_def simp del: collect_tags.simps)
+   apply (metis Nil_is_append_conv basic_trans_rules(31) insertE
+          not_Cons_self set_update_subset_insert wf_tags_spec)
+  apply auto
+  by (metis UnE basic_trans_rules(31) collect_tags.simps collect_tags_spec collect_tags_update
+      empty_iff insertE list.set(1) list.set(2) set_append)
 
 lemma "\<lbrakk>wf_heap s; writable r s; reborrow r s = (r', s')\<rbrakk> \<Longrightarrow> writable r s'"
-  apply (erule reborrow_elims')
+  apply (erule reborrow_elims)
   by (simp add: Let_def)
 
 record deriv_env = globals_ram +
@@ -361,18 +375,15 @@ lemma "\<Gamma> \<turnstile>\<^sub>t {s. wf_heap s} no_alias_body {s. True}"
   apply vcg
   by (auto simp: Let_def Abs_ref_inverse ref_def)
 
-lemma lemma1: "\<Gamma> \<turnstile>\<^sub>t {s. wf_heap s} no_alias_body {s. writable (ref2 s) s}"
+(* Spec of the program *)
+lemma "\<Gamma> \<turnstile>\<^sub>t
+  {s. wf_heap s}
+  no_alias_body
+  {s. (let p = Rep_ref (pointer (x s)) in
+      memory s ! p = int_val 300 \<and>
+      writable (x s) s \<and> \<not>writable (ref1 s) s \<and> writable (ref2 s) s)}"
   unfolding no_alias_body_def
   apply vcg
-  by (auto simp: Let_def Abs_ref_inverse ref_def)
-
-lemma lemma2: "\<Gamma> \<turnstile>\<^sub>t {s. wf_heap s} no_alias_body {s. \<not>writable (ref1 s) s}"
-  unfolding no_alias_body_def
-  apply vcg
-  apply (auto simp: Let_def Abs_ref_inverse ref_def)
-  sorry
-
-lemma "\<Gamma> \<turnstile>\<^sub>t {s. wf_heap s} no_alias_body {s. \<not>writable (ref1 s) s \<and> writable (ref2 s) s}"
-  sorry
+  by (auto simp: Let_def Abs_ref_inverse ref_def simp del: collect_tags.simps)
 
 end
