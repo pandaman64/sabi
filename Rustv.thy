@@ -96,7 +96,8 @@ qed
 (* sometimes collect_tags.simps confuses the automatic reasoner *)
 declare collect_tags.simps[simp del]
 
-lemma collect_tags_update[simp, intro]: "t \<in> collect_tags (ts[p := x]) \<Longrightarrow> t \<in> collect_tags ts \<or> t \<in> set x"
+lemma collect_tags_update[simp, intro]:
+  "t \<in> collect_tags (ts[p := x]) \<Longrightarrow> t \<in> collect_tags ts \<or> t \<in> set x"
   by (metis collect_tags_spec length_list_update nth_list_update nth_list_update_neq)
 
 lemma [simp, intro]: "collect_tags (ts @ [t]) = set t \<union> (collect_tags ts)"
