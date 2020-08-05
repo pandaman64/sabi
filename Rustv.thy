@@ -93,16 +93,19 @@ next
   qed
 qed
 
+(* sometimes collect_tags.simps confuses the automatic reasoner *)
+declare collect_tags.simps[simp del]
+
 lemma collect_tags_update[simp, intro]: "t \<in> collect_tags (ts[p := x]) \<Longrightarrow> t \<in> collect_tags ts \<or> t \<in> set x"
   by (metis collect_tags_spec length_list_update nth_list_update nth_list_update_neq)
 
 lemma [simp, intro]: "collect_tags (ts @ [t]) = set t \<union> (collect_tags ts)"
 proof (induction ts)
-qed auto
+qed (auto simp add: collect_tags.simps)
 
 lemma [simp, intro]: "finite (collect_tags ts)"
 proof (induction ts)
-qed simp+
+qed (simp add: collect_tags.simps)+
 
 fun wf_heap :: "'a globals_ram_scheme \<Rightarrow> bool" where
   "wf_heap s \<longleftrightarrow>
@@ -217,7 +220,7 @@ lemma heap_new_writable: "\<lbrakk>wf_heap s; heap_new v s = (r', s')\<rbrakk> \
 
 lemma heap_new_wf_heap_update: "\<lbrakk>wf_heap s; heap_new v s = (r', s')\<rbrakk> \<Longrightarrow> wf_heap s'"
   apply (erule heap_new_elims)
-  by (auto simp add: Let_def simp del: collect_tags.simps)
+  by (auto simp add: Let_def)
 
 fun reborrow :: "tagged_ref \<Rightarrow> 'a globals_ram_scheme \<Rightarrow> tagged_ref * 'a globals_ram_scheme" where
   "reborrow r s =
@@ -234,11 +237,10 @@ lemma reborrow_pointer: "reborrow r s = (r', s') \<Longrightarrow> pointer r' = 
 
 lemma "\<lbrakk>wf_heap s; writable r s; reborrow r s = (r', s')\<rbrakk> \<Longrightarrow> wf_heap s'"
   apply (erule reborrow_elims)
-  apply (auto simp add: Let_def simp del: collect_tags.simps)
+  apply (auto simp add: Let_def)
    apply (metis Nil_is_append_conv basic_trans_rules(31) insertE
           not_Cons_self set_update_subset_insert wf_tags_spec)
-  apply auto
-  by (metis UnE basic_trans_rules(31) collect_tags.simps collect_tags_spec collect_tags_update
+  by (metis UnE basic_trans_rules(31) collect_tags_spec collect_tags_update
       empty_iff insertE list.set(1) list.set(2) set_append)
 
 lemma "\<lbrakk>wf_heap s; writable r s; reborrow r s = (r', s')\<rbrakk> \<Longrightarrow> writable r s'"
@@ -313,7 +315,7 @@ lemma "\<Gamma> \<turnstile>\<^sub>t
   by auto
 
 record no_alias_env = globals_ram +
-  x :: tagged_ref (* locals are represented by owning pointer *)
+  x :: tagged_ref (* locals are represented by owning reference *)
   ref1 :: tagged_ref
   ref2 :: tagged_ref
 
@@ -380,10 +382,10 @@ lemma "\<Gamma> \<turnstile>\<^sub>t
   {s. wf_heap s}
   no_alias_body
   {s. (let p = Rep_ref (pointer (x s)) in
-      memory s ! p = int_val 300 \<and>
-      writable (x s) s \<and> \<not>writable (ref1 s) s \<and> writable (ref2 s) s)}"
+      memory s ! p = int_val 300) \<and>
+      writable (x s) s \<and> \<not>writable (ref1 s) s \<and> writable (ref2 s) s}"
   unfolding no_alias_body_def
   apply vcg
-  by (auto simp: Let_def Abs_ref_inverse ref_def simp del: collect_tags.simps)
+  by (auto simp: Let_def Abs_ref_inverse ref_def)
 
 end
