@@ -119,20 +119,23 @@ fun invalidate_children :: "tagged_ref \<Rightarrow> 'a globals_ram_scheme \<Rig
   "invalidate_children r s = 
     (let p = Rep_ref (pointer r);
          ts = tags s ! p;
-         ts' = takeWhile ((\<noteq>) (tag r)) ts @ [tag r] in
+         ts' = dropWhile ((\<noteq>) (tag r)) ts in
     s\<lparr> tags := (tags s)[p := ts'] \<rparr>)"
 
-lemma "\<lbrakk>invalidate_children r s = s'; Rep_ref (pointer r) < length (tags s)\<rbrakk>
-  \<Longrightarrow> last ((tags s') ! Rep_ref (pointer r)) = tag r"
-  apply (erule invalidate_children.elims)
-  by (simp add: Let_def)
-lemma "\<lbrakk>invalidate_children r s = s'; Rep_ref (pointer r) < length (tags s)\<rbrakk>
-  \<Longrightarrow> tag r \<notin> set (butlast ((tags s') ! Rep_ref (pointer r)))"
-  apply (erule invalidate_children.elims)
-  apply (simp add: Let_def)
-  apply auto
-  apply (drule set_takeWhileD)
-  by auto
+fun_cases invalidate_childrenE: "invalidate_children r s = s'"
+
+lemma dropWhile_hd_eq[simp, intro]: "x \<in> set xs \<Longrightarrow> hd (dropWhile ((\<noteq>) x) xs) = x"
+proof (induction xs)
+qed auto
+
+lemma dropWhile_in[simp, intro]: "x \<in> set xs \<Longrightarrow> x \<in> set (dropWhile ((\<noteq>) x) xs)"
+proof (induction xs)
+qed auto
+
+lemma "\<lbrakk>invalidate_children r s = s'; Rep_ref (pointer r) < length (tags s); tag r \<in> set ((tags s') ! Rep_ref (pointer r))\<rbrakk>
+  \<Longrightarrow> hd ((tags s') ! Rep_ref (pointer r)) = tag r"
+  apply (erule invalidate_childrenE)
+  by (simp add: Let_def set_dropWhileD)
 
 lemma invalidate_children_memory[intro]:
   "invalidate_children r s = s' \<Longrightarrow> memory s' = memory s"
@@ -174,6 +177,34 @@ lemma [simp, intro]: "new_tag s = t \<Longrightarrow> t \<notin> set (issued_tag
   apply (erule new_tag_elims)
   by (metis List.finite_set Max.set_eq_fold Max_ge insert_iff lessI list.set(2) not_le)
 
+lemma fold_max_init[intro]: "fold max xs (n :: nat) = m \<Longrightarrow> m \<ge> n"
+proof (induction xs arbitrary: n)
+  case Nil
+  then show ?case by simp
+next
+  case (Cons a xs)
+  then have "(max a n) \<le> m" by fastforce
+  then show "m \<ge> n" by auto
+qed
+
+lemma fold_max_elem[intro]: "fold max xs (n :: nat) = m \<Longrightarrow> \<forall>x \<in> set xs. m \<ge> x"
+proof (induction xs arbitrary: n)
+  case Nil
+  then show ?case by simp
+next
+  case (Cons a xs)
+  then have 1: "fold max xs (max a n) = m" by simp
+  then have 2: "\<forall>x \<in> set xs. m \<ge> x" using Cons.IH by auto
+  have "m \<ge> max a n" using 1 by blast
+  then have 3: "m \<ge> a" by auto
+
+  show ?case using 1 2 3 by auto
+qed
+
+lemma max_fold_max: "\<forall>x \<in> set xs. m \<ge> x \<Longrightarrow> fold max xs m = m"
+proof (induction xs)
+qed (auto simp add: max_def)
+
 lemma
   assumes
     "wf_heap s"
@@ -200,8 +231,8 @@ lemma writable_update[simp]: "writable r (memwrite r' v s) = writable r s"
 lemma writable_invalidated[intro]: "writable r s \<Longrightarrow> writable r (invalidate_children r s)"
   apply (simp add: Let_def)
   apply auto
-  by (metis in_set_conv_decomp length_list_update 
-      nth_equalityI nth_list_update_eq nth_list_update_neq)
+  by (metis (full_types) dropWhile_append3 in_set_conv_decomp
+      list_update_beyond not_le_imp_less nth_list_update_eq)
 
 fun new_pointer :: "'a globals_ram_scheme \<Rightarrow> ref" where
   "new_pointer s = Abs_ref (length (memory s))"
@@ -211,7 +242,7 @@ fun heap_new :: "val \<Rightarrow> 'a globals_ram_scheme \<Rightarrow> tagged_re
     (let p = new_pointer s;
          t = new_tag s in
     (\<lparr> pointer = p, tag = t \<rparr>,
-     s\<lparr> memory := memory s @ [v], tags := tags s @ [[t]], issued_tags := issued_tags s @ [t]\<rparr>))"
+     s\<lparr> memory := memory s @ [v], tags := tags s @ [[t]], issued_tags := t # issued_tags s \<rparr>))"
 
 fun_cases heap_new_elims: "heap_new v s = (r, s')"
 
@@ -227,8 +258,8 @@ fun reborrow :: "tagged_ref \<Rightarrow> 'a globals_ram_scheme \<Rightarrow> ta
   "reborrow r s =
     (let p = Rep_ref (pointer r) in
     let t = new_tag s in
-    let tags = (tags s)[p := (tags s) ! p @ [t]] in
-    (\<lparr> pointer = pointer r, tag = t \<rparr>, s\<lparr> tags := tags, issued_tags := issued_tags s @ [t] \<rparr>))"
+    let tags = (tags s)[p := t # ((tags s) ! p)] in
+    (\<lparr> pointer = pointer r, tag = t \<rparr>, s\<lparr> tags := tags, issued_tags := t # issued_tags s \<rparr>))"
 
 fun_cases reborrow_elims: "reborrow r s = (r', s')"
 
@@ -239,10 +270,8 @@ lemma reborrow_pointer: "reborrow r s = (r', s') \<Longrightarrow> pointer r' = 
 lemma "\<lbrakk>wf_heap s; writable r s; reborrow r s = (r', s')\<rbrakk> \<Longrightarrow> wf_heap s'"
   apply (erule reborrow_elims)
   apply (auto simp add: Let_def)
-   apply (metis Nil_is_append_conv basic_trans_rules(31) insertE
-          not_Cons_self set_update_subset_insert wf_tags_spec)
-  by (metis UnE basic_trans_rules(31) collect_tags_spec collect_tags_update
-      empty_iff insertE list.set(1) list.set(2) set_append)
+   apply (metis in_set_conv_nth length_list_update list.discI nth_list_update wf_tags_spec)
+  by (meson collect_tags_spec collect_tags_update in_mono set_ConsD)
 
 lemma "\<lbrakk>wf_heap s; writable r s; reborrow r s = (r', s')\<rbrakk> \<Longrightarrow> writable r s'"
   apply (erule reborrow_elims)
@@ -293,8 +322,7 @@ lemma "\<Gamma> \<turnstile>\<^sub>t {s. writable (p s) s \<and> wf_heap s} deri
    prefer 2
    apply vcg_step
    apply vcg_step
-  apply (simp add: Let_def)
-  by auto
+  by (auto simp add: Let_def)
 
 definition reb_body :: "(deriv_env, 'p, rust_error) com" where
   "reb_body = Guard invalid_ref {s. writable (p s) s}
@@ -369,8 +397,7 @@ lemma "\<Gamma> \<turnstile>\<^sub>t {s. wf_heap s} no_alias_body {s. True}"
    apply vcg_step
   apply vcg_step
   apply vcg_step
-  apply (simp add: Let_def Abs_ref_inverse ref_def)
-  by auto
+  by (simp add: Let_def Abs_ref_inverse ref_def)
 
 (* Termination, by full VCG *)
 lemma "\<Gamma> \<turnstile>\<^sub>t {s. wf_heap s} no_alias_body {s. True}"
@@ -387,6 +414,8 @@ lemma "\<Gamma> \<turnstile>\<^sub>t
       writable (x s) s \<and> \<not>writable (ref1 s) s \<and> writable (ref2 s) s}"
   unfolding no_alias_body_def
   apply vcg
-  by (auto simp: Let_def Abs_ref_inverse ref_def)
+  apply (auto simp: Let_def Abs_ref_inverse ref_def)
+   apply (metis Suc_n_not_le_n fold_max_init max.coboundedI2)
+  by (metis Suc_n_not_le_n fold_max_init)
 
 end
