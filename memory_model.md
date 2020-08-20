@@ -42,7 +42,7 @@ inductive reborrow_stack :: "(refkind * tag set) stack => bool" where
     ReborrowUniqueSRO: "reborrow_stack ((Unique, {t}) # tail) ==> reborrow_stack ((SharedReadOnly, ts) # (Unique, {t}) # tail) |
     
     (* SharedReadWriteからも全ての参照が再借用できる *)
-    ReborrowSRWUnique: "reborrow_stack ((SharedReadWrite, ts) # tail) ==> reborrow_stack ((Unique, {t}) # (SharedReadWrite, ts) # tail) |
+    ReborrowSRWUnique: "reborrow_stack ((SharedReadWrite, ts) # tail) ==> reborrow_stack ((Unique, {t}) # (SharedReadWrite, ts) # tail)" |
     (* SharedReadWrite -> SharedReadWriteという再借用は同じタグ集合に突っ込む *)
     ReborrowSRWSRW: "reborrow_stack ((SharedReadWrite, ts) # tail) ==> reborrow_stack ((SharedReadWrite, insert t ts) # tail)" |
     ReborrowSRWSRO: "reborrow_stack ((SharedReadWrite, ts) # tail) ==> reborrow_stack ((SharedReadOnly, ts') # (SharedReadWrite, ts) # tail) |
