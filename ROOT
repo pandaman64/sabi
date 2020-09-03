@@ -5,6 +5,7 @@ session "rust-verification" = HOL +
     "Simpl"
   directories
     Unique
+    Rustv
   theories [show_question_marks = false]
     Unique
     Rustv
