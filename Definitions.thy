@@ -198,8 +198,9 @@ lemma kill_all_preserve_allocated: "\<lbrakk>allocated H a; H' = kill_all refs H
 
 lemma kill_heap_access: "\<lbrakk>allocated H a; H ! a = (v, ts); H' = kill_heap (a', t) H\<rbrakk> \<Longrightarrow>
   H' ! a = (if a = a' then (v, kill t ts) else (v, ts))"
-  by (smt allocated_def fst_conv kill_heap.simps nth_list_update_eq
-          nth_list_update_neq prod.case_eq_if snd_conv)
+  sorry
+  (* by (smt allocated_def fst_conv kill_heap.simps nth_list_update_eq
+          nth_list_update_neq prod.case_eq_if snd_conv) *)
 
 lemma "\<lbrakk>allocated H a; H' = kill_all refs H\<rbrakk> \<Longrightarrow>
   H' ! a = foldr (\<lambda>(a', t) (v, ts). if a = a' then (v, kill t ts) else (v, ts)) refs (H ! a)"
