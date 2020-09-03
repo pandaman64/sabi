@@ -3,6 +3,8 @@ session "rust-verification" = HOL +
   sessions
     "HOL-Library" (* for HOL-Library.LaTeXsugar *)
     "Simpl"
+  directories
+    Unique
   theories [show_question_marks = false]
     Unique
     Rustv
