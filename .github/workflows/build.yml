@@ -1,0 +1,19 @@
+name: CI
+
+on:
+  push:
+    branches: [ master, actions ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Build sessions
+        uses: pandaman64/isabelle-action@v1
+        with:
+          args: "build -d Simpl -D . -v"
