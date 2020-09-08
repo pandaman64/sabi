@@ -11,7 +11,7 @@ definition deriv_body :: "(deriv_env, 'p, rust_error) com" where
     (Seq (Basic (\<lambda>s. invalidate_children (p s) s))
          (Basic (\<lambda>s. (memwrite (p s) (int_val 101) s))))"
 
-lemma partial: "\<Gamma> \<turnstile> {s. writable (p s) s} deriv_body {s. memory s ! (Rep_ref (pointer (p s))) = int_val 101}"
+lemma partial: "\<Gamma> \<turnstile> {s. writable (p s) s} deriv_body {s. memory s ! (the_ptr (pointer (p s))) = int_val 101}"
   unfolding deriv_body_def
   apply (hoare_rule HoarePartial.Guard)
    prefer 2
@@ -20,7 +20,7 @@ lemma partial: "\<Gamma> \<turnstile> {s. writable (p s) s} deriv_body {s. memor
   apply (simp add: Let_def)
   by auto
 
-lemma "\<Gamma> \<turnstile>\<^sub>t {s. writable (p s) s} deriv_body {s. memory s ! (Rep_ref (pointer (p s))) = int_val 101}"
+lemma "\<Gamma> \<turnstile>\<^sub>t {s. writable (p s) s} deriv_body {s. memory s ! (the_ptr (pointer (p s))) = int_val 101}"
   unfolding deriv_body_def
   apply (hoare_rule HoareTotal.Guard)
    prefer 2
@@ -32,7 +32,7 @@ lemma "\<Gamma> \<turnstile>\<^sub>t {s. writable (p s) s} deriv_body {s. memory
 lemma "\<forall>\<sigma>. \<Gamma> \<turnstile>\<^sub>t
   {s. s = \<sigma> \<and> writable (p s) s}
   deriv_body
-  {s. memory s = (memory \<sigma>)[Rep_ref (pointer (p \<sigma>)) := int_val 101]}"
+  {s. memory s = (memory \<sigma>)[the_ptr (pointer (p \<sigma>)) := int_val 101]}"
   unfolding deriv_body_def
   apply (hoare_rule HoareTotal.Guard)
    prefer 2

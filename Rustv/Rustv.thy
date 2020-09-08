@@ -1,14 +1,21 @@
 theory Rustv
-  imports Simpl.Vcg Simpl.Simpl_Heap
+  imports Simpl.Vcg
 begin
 
 datatype rust_error = invalid_ref
 
-type_synonym tag = nat
+datatype pointer = ptr_val nat
+datatype tag = tag_val nat
 datatype val = int_val int
 record tagged_ref = 
-  pointer :: ref
+  pointer :: pointer
   tag :: tag
+
+fun the_ptr :: "pointer \<Rightarrow> nat" where
+  "the_ptr (ptr_val p) = p"
+
+fun the_tag :: "tag \<Rightarrow> nat" where
+  "the_tag (tag_val t) = t"
 
 record globals_ram =
   memory :: "val list"
@@ -52,6 +59,14 @@ next
   case (Cons a ts)
   then show ?case by (simp add: wf_tags_spec)
 qed
+
+lemma wf_tags_update:
+  assumes
+    "wf_tags tag_stack"
+    "ts \<noteq> []"
+  shows
+    "wf_tags (tag_stack[p := ts])"
+  using assms(1) assms(2) set_update_subset_insert wf_tags_spec by fastforce
 
 fun collect_tags :: "tag list list \<Rightarrow> tag set" where
   "collect_tags ts = foldr (\<lambda>ts accum. set ts \<union> accum) ts {}"
@@ -117,7 +132,7 @@ fun wf_heap :: "'a globals_ram_scheme \<Rightarrow> bool" where
 (* when we use a unique reference, invalidate all children *)
 fun invalidate_children :: "tagged_ref \<Rightarrow> 'a globals_ram_scheme \<Rightarrow> 'a globals_ram_scheme" where
   "invalidate_children r s = 
-    (let p = Rep_ref (pointer r);
+    (let p = the_ptr (pointer r);
          ts = tags s ! p;
          ts' = dropWhile ((\<noteq>) (tag r)) ts in
     s\<lparr> tags := (tags s)[p := ts'] \<rparr>)"
@@ -132,8 +147,8 @@ lemma dropWhile_in[simp, intro]: "x \<in> set xs \<Longrightarrow> x \<in> set (
 proof (induction xs)
 qed auto
 
-lemma "\<lbrakk>invalidate_children r s = s'; Rep_ref (pointer r) < length (tags s); tag r \<in> set ((tags s') ! Rep_ref (pointer r))\<rbrakk>
-  \<Longrightarrow> hd ((tags s') ! Rep_ref (pointer r)) = tag r"
+lemma "\<lbrakk>invalidate_children r s = s'; the_ptr (pointer r) < length (tags s); tag r \<in> set ((tags s') ! the_ptr (pointer r))\<rbrakk>
+  \<Longrightarrow> hd ((tags s') ! the_ptr (pointer r)) = tag r"
   apply (erule invalidate_childrenE)
   by (simp add: Let_def set_dropWhileD)
 
@@ -147,65 +162,56 @@ fun memwrite
   where
   "memwrite p v s =
     (let memory = memory s in
-    let memory' = memory[Rep_ref (pointer p) := v] in
+    let memory' = memory[the_ptr (pointer p) := v] in
     s\<lparr> memory := memory' \<rparr>)"
 
 lemma memwrite_written[simp]:
   fixes p v s s'
   assumes "s' = memwrite p v s"
-          "Rep_ref (pointer p) < length (memory s)"
-  shows "(memory s') ! Rep_ref (pointer p) = v"
+          "the_ptr (pointer p) < length (memory s)"
+  shows "(memory s') ! the_ptr (pointer p) = v"
   by (simp add: assms(1) assms(2))
 lemma memwrite_not_written[simp]:
   fixes p p' v s s'
   assumes "s' = memwrite p v s"
           "pointer p \<noteq> pointer p'"
-  shows "(memory s') ! Rep_ref (pointer p') = (memory s) ! Rep_ref (pointer p')"
-  by (simp add: Rep_ref_inject assms(2) assms(1))
+        shows "(memory s') ! the_ptr (pointer p') = (memory s) ! the_ptr (pointer p')"
+  apply (simp add: assms(1))
+  by (metis assms(2) nth_list_update_neq the_ptr.elims)
 lemma memwrite_tags:
   fixes p v s s'
   assumes "s' = memwrite p v s"
   shows "tags s' = tags s"
   by (simp add: assms)
 
+fun max_list :: "nat list \<Rightarrow> nat" where
+  "max_list [] = 0" |
+  "max_list (x # xs) = max x (max_list xs)"
+
+lemma max_list_ge: "\<forall>x \<in> set xs. max_list xs \<ge> x"
+proof (induction xs)
+  case Nil
+  then show ?case by simp
+next
+  case (Cons x' xs)
+  then show ?case by auto
+qed
+
+lemma suc_max_list_gt: "\<forall>x \<in> set xs. Suc (max_list xs) > x"
+  using max_list_ge by fastforce
+
 fun new_tag :: "'a globals_ram_scheme \<Rightarrow> tag" where
-  "new_tag s = fold (\<lambda>t accum. max t accum) (issued_tags s) 0 + 1"
+  "new_tag s = tag_val (Suc (max_list (map the_tag (issued_tags s))))"
 
 fun_cases new_tag_elims: "new_tag s = t"
 
-lemma [simp, intro]: "new_tag s = t \<Longrightarrow> t \<notin> set (issued_tags s)"
-  apply (erule new_tag_elims)
-  by (metis List.finite_set Max.set_eq_fold Max_ge insert_iff lessI list.set(2) not_le)
+lemma new_tag_gt: "\<forall>t \<in> set (issued_tags s). the_tag (new_tag s) > the_tag t"
+  using suc_max_list_gt by simp
 
-lemma fold_max_init[intro]: "fold max xs (n :: nat) = m \<Longrightarrow> m \<ge> n"
-proof (induction xs arbitrary: n)
-  case Nil
-  then show ?case by simp
-next
-  case (Cons a xs)
-  then have "(max a n) \<le> m" by fastforce
-  then show "m \<ge> n" by auto
-qed
+lemma new_tag_notin[simp, intro]: "new_tag s = t \<Longrightarrow> t \<notin> set (issued_tags s)"
+  using new_tag_gt by blast
 
-lemma fold_max_elem[intro]: "fold max xs (n :: nat) = m \<Longrightarrow> \<forall>x \<in> set xs. m \<ge> x"
-proof (induction xs arbitrary: n)
-  case Nil
-  then show ?case by simp
-next
-  case (Cons a xs)
-  then have 1: "fold max xs (max a n) = m" by simp
-  then have 2: "\<forall>x \<in> set xs. m \<ge> x" using Cons.IH by auto
-  have "m \<ge> max a n" using 1 by blast
-  then have 3: "m \<ge> a" by auto
-
-  show ?case using 1 2 3 by auto
-qed
-
-lemma max_fold_max: "\<forall>x \<in> set xs. m \<ge> x \<Longrightarrow> fold max xs m = m"
-proof (induction xs)
-qed (auto simp add: max_def)
-
-lemma
+lemma new_tag_notin_at:
   assumes
     "wf_heap s"
     "new_tag s = t"
@@ -221,7 +227,7 @@ qed
 
 fun writable :: "tagged_ref \<Rightarrow> 'a globals_ram_scheme \<Rightarrow> bool" where
   "writable r s = 
-    (let p = Rep_ref (pointer r) in
+    (let p = the_ptr (pointer r) in
     let t = tag r in
     p < length (memory s) \<and> t \<in> set (tags s ! p))"
 
@@ -231,11 +237,10 @@ lemma writable_update[simp]: "writable r (memwrite r' v s) = writable r s"
 lemma writable_invalidated[intro]: "writable r s \<Longrightarrow> writable r (invalidate_children r s)"
   apply (simp add: Let_def)
   apply auto
-  by (metis (full_types) dropWhile_append3 in_set_conv_decomp
-      list_update_beyond not_le_imp_less nth_list_update_eq)
+  by (metis dropWhile_in list_update_beyond not_le nth_list_update_eq)
 
-fun new_pointer :: "'a globals_ram_scheme \<Rightarrow> ref" where
-  "new_pointer s = Abs_ref (length (memory s))"
+fun new_pointer :: "'a globals_ram_scheme \<Rightarrow> pointer" where
+  "new_pointer s = ptr_val (length (memory s))"
 
 fun heap_new :: "val \<Rightarrow> 'a globals_ram_scheme \<Rightarrow> tagged_ref * 'a globals_ram_scheme" where
   "heap_new v s = 
@@ -248,7 +253,7 @@ fun_cases heap_new_elims: "heap_new v s = (r, s')"
 
 lemma heap_new_writable: "\<lbrakk>wf_heap s; heap_new v s = (r', s')\<rbrakk> \<Longrightarrow> writable r' s'"
   apply (erule heap_new_elims)
-  by (simp add: Let_def Abs_ref_inverse ref_def)
+  by (simp add: Let_def)
 
 lemma heap_new_wf_heap_update: "\<lbrakk>wf_heap s; heap_new v s = (r', s')\<rbrakk> \<Longrightarrow> wf_heap s'"
   apply (erule heap_new_elims)
@@ -256,7 +261,7 @@ lemma heap_new_wf_heap_update: "\<lbrakk>wf_heap s; heap_new v s = (r', s')\<rbr
 
 fun reborrow :: "tagged_ref \<Rightarrow> 'a globals_ram_scheme \<Rightarrow> tagged_ref * 'a globals_ram_scheme" where
   "reborrow r s =
-    (let p = Rep_ref (pointer r) in
+    (let p = the_ptr (pointer r) in
     let t = new_tag s in
     let tags = (tags s)[p := t # ((tags s) ! p)] in
     (\<lparr> pointer = pointer r, tag = t \<rparr>, s\<lparr> tags := tags, issued_tags := t # issued_tags s \<rparr>))"
@@ -270,7 +275,7 @@ lemma reborrow_pointer: "reborrow r s = (r', s') \<Longrightarrow> pointer r' = 
 lemma reborrow_update_heap: "\<lbrakk>wf_heap s; writable r s; reborrow r s = (r', s')\<rbrakk> \<Longrightarrow> wf_heap s'"
   apply (erule reborrow_elims)
   apply (auto simp add: Let_def)
-   apply (metis in_set_conv_nth length_list_update list.discI nth_list_update wf_tags_spec)
+  using wf_tags_update apply simp
   by (meson collect_tags_spec collect_tags_update in_mono set_ConsD)
 
 lemma reborrow_writable: "\<lbrakk>wf_heap s; writable r s; reborrow r s = (r', s')\<rbrakk> \<Longrightarrow> writable r s'"

@@ -56,26 +56,24 @@ lemma "\<Gamma> \<turnstile>\<^sub>t {s. wf_heap s} no_alias_body {s. True}"
    apply vcg_step
   apply vcg_step
   apply vcg_step
-  by (simp add: Let_def Abs_ref_inverse ref_def)
+  by (simp add: Let_def)
 
 (* Termination, by full VCG *)
 lemma "\<Gamma> \<turnstile>\<^sub>t {s. wf_heap s} no_alias_body {s. True}"
   unfolding no_alias_body_def
   apply vcg
-  by (auto simp: Let_def Abs_ref_inverse ref_def)
+  by (auto simp: Let_def)
 
 (* Spec of the program *)
 lemma "\<Gamma> \<turnstile>\<^sub>t
   {s. wf_heap s}
   no_alias_body
-  {s. (let p = Rep_ref (pointer (x s)) in
+  {s. (let p = the_ptr (pointer (x s)) in
       memory s ! p = int_val 300) \<and>
       writable (x s) s \<and> \<not>writable (ref1 s) s \<and> writable (ref2 s) s}"
   unfolding no_alias_body_def
   apply vcg
   (* This auto takes too long because of the term size *)
-  apply (auto simp: Let_def Abs_ref_inverse ref_def)
-   apply (metis Suc_n_not_le_n fold_max_init max.coboundedI2)
-  by (metis Suc_n_not_le_n fold_max_init)
+  by (auto simp: Let_def)
 
 end
