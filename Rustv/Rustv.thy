@@ -434,6 +434,10 @@ lemma collect_tags_update[simp, intro]:
   "t \<in> collect_tags (ts[p := stack]) \<Longrightarrow> t \<in> collect_tags ts \<or> t \<in> collect_tags_stack stack"
   using collect_tags_spec set_update_subset_insert subset_code(1) by fastforce
 
+lemma collect_tags_update_subset:
+  "collect_tags (ts[p := stack]) \<subseteq> collect_tags_stack stack \<union> collect_tags ts"
+  using collect_tags_update by blast
+
 lemma collect_tags_last[simp, intro]:
   "collect_tags (ts @ [stack]) = collect_tags_stack stack \<union> (collect_tags ts)"
 proof (induction ts)
@@ -443,6 +447,11 @@ lemma collect_tags_stack_finite:
   assumes "stack_finite stack"
   shows "finite (collect_tags_stack stack)"
   using assms stack_finite_spec by auto
+
+lemma stack_finite_finite_collect_tags_stack:
+  assumes "finite (collect_tags_stack stack)"
+  shows "stack_finite stack"
+  using assms by (simp add: stack_finite_spec)
 
 lemma collect_tags_finite[simp, intro]: "wf_tags ts \<Longrightarrow> finite (collect_tags ts)"
 proof (induction ts)
@@ -471,9 +480,9 @@ fun_cases pop_tags_elims: "pop_tags r s = s'"
 
 lemma hd_dropWhile_stack:
   assumes
-    "pop_tags_stack (tag r) stack = stack'"
-    "\<exists>entry \<in> set stack. (tag r) \<in> snd entry"
-  shows "tag r \<in> snd (hd stack')"
+    "pop_tags_stack t stack = stack'"
+    "\<exists>entry \<in> set stack. t \<in> snd entry"
+  shows "t \<in> snd (hd stack')"
   by (metis assms(1) assms(2) pop_tags_stack.simps dropWhile_eq_Nil_conv hd_dropWhile)
 
 lemma dropWhile_stack_reborrow:
@@ -662,6 +671,23 @@ proof (induction stack)
 next
   case (Cons entry stack)
   then show ?case using writable_stack.elims(2) by fastforce
+qed
+
+lemma writable_stack_pop_tags_stack':
+  assumes
+    "writable_stack t stack"
+    "pop_tags_stack t stack = stack'"
+  shows "(fst (hd stack') = Unique \<or> fst (hd stack') = SharedReadWrite)
+      \<and> t \<in> snd (hd stack')"
+    (is "?kind \<and> _")
+proof
+  show ?kind
+    using assms
+    by (metis hd_dropWhile list.collapse pop_tags_stack.elims prod.collapse writable_stack.simps(1)
+        writable_stack.simps(2) writable_stack_pop_tags_stack)
+next
+  show "t \<in> snd (hd stack')"
+    using hd_dropWhile_stack assms writable_stack_in_collect_tags by simp
 qed
 
 fun writable :: "tagged_ref \<Rightarrow> 'a globals_ram_scheme \<Rightarrow> bool" where
@@ -888,7 +914,6 @@ proof -
   then show ?thesis by (simp add: q)
 qed
 
-
 lemma wf_reborrow_reborrow_stack:
   assumes
     "wf_reborrow stack"
@@ -907,14 +932,129 @@ next
   then show ?thesis using assms wf_reborrow_reborrow_stack_SRO by simp
 qed
 
+lemma collect_tags_reborrow_stack_subset:
+  assumes "reborrow_stack k t stack = stack'"
+  shows "collect_tags_stack stack' \<subseteq> {t} \<union> collect_tags_stack stack"
+using assms proof(cases rule: reborrow_stack.elims)
+qed auto
+
+lemma stack_finite_reborrow_stack:
+  assumes
+    "reborrow_stack k t stack = stack'"
+    "stack_finite stack"
+  shows "stack_finite stack'"
+using assms collect_tags_reborrow_stack_subset stack_finite_finite_collect_tags_stack
+  by (meson collect_tags_stack_finite finite.emptyI finite.insertI finite_Un finite_subset)
+
+lemma notin_pop_tags_stack:
+  assumes "pop_tags_stack t stack = stack'"
+  shows "collect_tags_stack stack' \<subseteq> collect_tags_stack stack"
+using assms proof (induction stack arbitrary: stack')
+  case Nil
+  then show ?case by simp
+next
+  case (Cons entry stack)
+  show ?case
+  proof (cases "t \<in> snd entry")
+    case True
+    then have "stack' = entry # stack" using Cons.prems by simp
+    then show ?thesis by simp
+  next
+    case False
+    then have "stack' = pop_tags_stack t stack" using Cons.prems by simp
+    then show ?thesis using Cons.IH by auto
+  qed
+qed
+
+lemma wf_reborrow_stack_reborrow:
+  assumes
+    "wf_reborrow stack"
+    "writable_stack old stack"
+    "pop_tags_stack old stack = popped"
+    "reborrow_stack k new popped = stack'"
+    "new \<notin> collect_tags_stack stack"
+  shows "wf_reborrow stack'"
+proof -
+  have p: "wf_reborrow popped"
+    using assms
+    by (metis dropWhile_stack_reborrow pop_tags_stack.elims
+        writable_stack.simps(1) writable_stack_pop_tags_stack)
+  have q: "new \<notin> collect_tags_stack popped"
+    using assms notin_pop_tags_stack by fastforce
+  have "(fst (hd popped) = Unique \<and> old \<in> snd (hd popped))
+      \<or> (fst (hd popped) = SharedReadWrite \<and> old \<in> snd (hd popped))"
+    using assms writable_stack_pop_tags_stack' by blast
+  then show ?thesis
+  proof
+    assume "fst (hd popped) = Unique \<and> old \<in> snd (hd popped)"
+    then obtain ts rest where
+      "popped = (Unique, ts) # rest"
+      "old \<in> ts"
+      by (metis assms(2) assms(3) list.collapse prod.collapse
+          writable_stack.simps(1) writable_stack_pop_tags_stack)
+    moreover have "ts = {old}" using calculation assms p unique_ref_head by fastforce
+    moreover have "reborrow_stack k new ((Unique, {old}) # rest) = stack'"
+      using assms calculation by simp
+    then show ?thesis
+    proof (rule reborrow_stack.elims, auto)
+      show "wf_reborrow ((Unique, {new}) # (Unique, {old}) # rest)"
+        using assms calculation p q ReborrowUniqueUnique by simp
+    next
+      show "wf_reborrow ((SharedReadWrite, {new}) # (Unique, {old}) # rest)"
+        using assms calculation p q ReborrowUniqueSRW by simp
+    next
+      show "wf_reborrow ((SharedReadOnly, {new}) # (Unique, {old}) # rest)"
+        using assms calculation p q ReborrowUniqueSRO by simp
+    qed
+  next
+    assume "fst (hd popped) = SharedReadWrite \<and> old \<in> snd (hd popped)"
+    then obtain ts rest where
+      "popped = (SharedReadWrite, ts) # rest"
+      "old \<in> ts"
+      by (metis assms(2) assms(3) list.collapse prod.collapse
+          writable_stack.simps(1) writable_stack_pop_tags_stack)
+    moreover have "reborrow_stack k new ((SharedReadWrite, ts) # rest) = stack'"
+      using assms calculation by simp
+    then show ?thesis
+    proof (rule reborrow_stack.elims, auto)
+      show "wf_reborrow ((Unique, {new}) # (SharedReadWrite, ts) # rest)"
+        using assms calculation p q ReborrowSRWUnique by simp
+    next
+      show "wf_reborrow ((SharedReadWrite, insert new ts) # rest)"
+        using assms calculation p q ReborrowSRWSRW by simp
+    next
+      show "wf_reborrow ((SharedReadOnly, {new}) # (SharedReadWrite, ts) # rest)"
+        using assms calculation p q ReborrowSRWSRO by simp
+    qed
+  qed
+qed
+
 fun reborrow :: "ref_kind \<Rightarrow> tagged_ref \<Rightarrow> 'a globals_ram_scheme \<Rightarrow> tagged_ref * 'a globals_ram_scheme" where
   "reborrow k r s =
     (let p = the_ptr (pointer r) in
     let t = new_tag s in
-    let tags = (tags s)[p := reborrow_stack k (tag r) ((tags s) ! p)] in
+    let popped = pop_tags_stack (tag r) ((tags s) ! p) in
+    let tags = (tags s)[p := reborrow_stack k t popped] in
     (\<lparr> pointer = pointer r, tag = t \<rparr>,  s\<lparr> tags := tags, issued_tags := t # issued_tags s \<rparr>))"
 
 fun_cases reborrow_elims: "reborrow k r s = (r', s')"
+
+lemma collect_tags_stack_reborrow_subset:
+  assumes
+    "pop_tags_stack parent stack = popped"
+    "reborrow_stack k child popped = stack'"
+  shows "collect_tags_stack stack' \<subseteq> {child} \<union> collect_tags_stack stack"
+proof -
+  have "collect_tags_stack stack' \<subseteq> {child} \<union> collect_tags_stack popped"
+    using collect_tags_reborrow_stack_subset assms by simp
+  moreover have "collect_tags_stack popped \<subseteq> collect_tags_stack stack"
+    using notin_pop_tags_stack assms by simp
+  ultimately show ?thesis by auto
+qed
+
+lemma collect_tags_reborrow_subset:
+  "reborrow k r s = (r', s') \<Longrightarrow> collect_tags (tags s') \<subseteq> {new_tag s} \<union> collect_tags (tags s)"
+  sorry
 
 lemma reborrow_pointer: "reborrow k r s = (r', s') \<Longrightarrow> pointer r' = pointer r"
   apply (erule reborrow_elims)
@@ -922,12 +1062,26 @@ lemma reborrow_pointer: "reborrow k r s = (r', s') \<Longrightarrow> pointer r' 
 
 lemma reborrow_update_heap: "\<lbrakk>wf_heap s; writable r s; reborrow k r s = (r', s')\<rbrakk> \<Longrightarrow> wf_heap s'"
   apply (erule reborrow_elims)
-  apply (auto simp add: Let_def)
-  using wf_tags_update apply simp
-  by (meson collect_tags_spec collect_tags_update in_mono set_CosD)
+  apply auto
+    apply (simp add: Let_def) (* length condition is solved by simp *)
+   (* finite condition *)
+   apply (simp add: Let_def)
+   apply (rule wf_tags_update)
+     apply simp
+    prefer 2
+  using stack_finite_reborrow_stack wf_tags_spec apply (simp add: dropWhile_stack_finite)
+   apply (rule wf_reborrow_stack_reborrow, auto)
+  using nth_mem wf_tags_spec apply blast
+  using new_tag_notin_at apply fastforce
+  apply (subgoal_tac "collect_tags (tags s') \<subseteq> {new_tag s} \<union> collect_tags (tags s)")
+   apply (simp add: Let_def)
+   apply auto[1]
+  using collect_tags_reborrow_subset
+  by (metis new_tag.simps pop_tags_stack.elims reborrow.simps)
 
-lemma reborrow_writable: "\<lbrakk>wf_heap s; writable r s; reborrow r s = (r', s')\<rbrakk> \<Longrightarrow> writable r s'"
+lemma reborrow_writable: "\<lbrakk>wf_heap s; writable r s; reborrow k r s = (r', s')\<rbrakk> \<Longrightarrow> writable r s'"
   apply (erule reborrow_elims)
-  by (simp add: Let_def)
+  apply (simp add: Let_def)
+  sorry
 
 end
