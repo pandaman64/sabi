@@ -1029,12 +1029,15 @@ proof -
   qed
 qed
 
+fun reborrow_pop_stack :: "ref_kind \<Rightarrow> tag \<Rightarrow> tag \<Rightarrow> (ref_kind * tag set) stack \<Rightarrow> (ref_kind * tag set) stack" where
+  "reborrow_pop_stack k child parent stack =
+    reborrow_stack k child (pop_tags_stack parent stack)"
+
 fun reborrow :: "ref_kind \<Rightarrow> tagged_ref \<Rightarrow> 'a globals_ram_scheme \<Rightarrow> tagged_ref * 'a globals_ram_scheme" where
   "reborrow k r s =
     (let p = the_ptr (pointer r) in
     let t = new_tag s in
-    let popped = pop_tags_stack (tag r) ((tags s) ! p) in
-    let tags = (tags s)[p := reborrow_stack k t popped] in
+    let tags = (tags s)[p := reborrow_pop_stack k t (tag r) ((tags s) ! p)] in
     (\<lparr> pointer = pointer r, tag = t \<rparr>,  s\<lparr> tags := tags, issued_tags := t # issued_tags s \<rparr>))"
 
 fun_cases reborrow_elims: "reborrow k r s = (r', s')"
@@ -1051,6 +1054,14 @@ proof -
     using notin_pop_tags_stack assms by simp
   ultimately show ?thesis by auto
 qed
+
+lemma writable_reborrow_pop_stack:
+  assumes
+    "writable_stack t stack"
+    "reborrow_pop_stack k t' t stack = stack'"
+    "t \<noteq> t'"
+  shows "writable_stack t stack'"
+  sorry
 
 lemma collect_tags_reborrow_subset:
   "reborrow k r s = (r', s') \<Longrightarrow> collect_tags (tags s') \<subseteq> {new_tag s} \<union> collect_tags (tags s)"
@@ -1077,11 +1088,12 @@ lemma reborrow_update_heap: "\<lbrakk>wf_heap s; writable r s; reborrow k r s = 
    apply (simp add: Let_def)
    apply auto[1]
   using collect_tags_reborrow_subset
-  by (metis new_tag.simps pop_tags_stack.elims reborrow.simps)
+  by (metis new_tag.simps pop_tags_stack.elims reborrow.simps reborrow_pop_stack.simps)
 
 lemma reborrow_writable: "\<lbrakk>wf_heap s; writable r s; reborrow k r s = (r', s')\<rbrakk> \<Longrightarrow> writable r s'"
   apply (erule reborrow_elims)
   apply (simp add: Let_def)
+  apply (rule writable_reborrow_pop_stack)
   sorry
 
 end
