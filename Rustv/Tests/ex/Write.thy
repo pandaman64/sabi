@@ -63,7 +63,8 @@ lemma "\<Gamma> \<turnstile>\<^sub>t
   {s. writable (x s) s}"
   unfolding reb_body_def
   apply vcg
-  apply (auto simp add: Let_def)
+  (* apply (auto simp add: Let_def) *)
+  apply (simp only: Let_def)
   sorry
 
 end

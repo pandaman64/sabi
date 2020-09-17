@@ -1033,6 +1033,18 @@ fun reborrow_pop_stack :: "ref_kind \<Rightarrow> tag \<Rightarrow> tag \<Righta
   "reborrow_pop_stack k child parent stack =
     reborrow_stack k child (pop_tags_stack parent stack)"
 
+lemma reborrow_pop_stack_subset:
+  "collect_tags_stack (reborrow_pop_stack k child parent stack) \<subseteq> {child} \<union> collect_tags_stack stack"
+proof (induction stack arbitrary: child parent)
+  case Nil
+  then show ?case by simp
+next
+  case (Cons entry stack)
+  then show ?case
+    by (metis collect_tags_reborrow_stack_subset insert_is_Un insert_mono
+        notin_pop_tags_stack reborrow_pop_stack.elims subset_trans)
+qed
+
 fun reborrow :: "ref_kind \<Rightarrow> tagged_ref \<Rightarrow> 'a globals_ram_scheme \<Rightarrow> tagged_ref * 'a globals_ram_scheme" where
   "reborrow k r s =
     (let p = the_ptr (pointer r) in
@@ -1040,7 +1052,9 @@ fun reborrow :: "ref_kind \<Rightarrow> tagged_ref \<Rightarrow> 'a globals_ram_
     let tags = (tags s)[p := reborrow_pop_stack k t (tag r) ((tags s) ! p)] in
     (\<lparr> pointer = pointer r, tag = t \<rparr>,  s\<lparr> tags := tags, issued_tags := t # issued_tags s \<rparr>))"
 
+declare reborrow_pop_stack.simps [simp del]
 fun_cases reborrow_elims: "reborrow k r s = (r', s')"
+declare reborrow_pop_stack.simps [simp]
 
 lemma collect_tags_stack_reborrow_subset:
   assumes
@@ -1055,17 +1069,11 @@ proof -
   ultimately show ?thesis by auto
 qed
 
-lemma writable_reborrow_pop_stack:
-  assumes
-    "writable_stack t stack"
-    "reborrow_pop_stack k t' t stack = stack'"
-    "t \<noteq> t'"
-  shows "writable_stack t stack'"
-  sorry
-
 lemma collect_tags_reborrow_subset:
-  "reborrow k r s = (r', s') \<Longrightarrow> collect_tags (tags s') \<subseteq> {new_tag s} \<union> collect_tags (tags s)"
-  sorry
+  "\<lbrakk>the_ptr (pointer r) < length (tags s); reborrow k r s = (r', s')\<rbrakk> \<Longrightarrow> collect_tags (tags s') \<subseteq> {new_tag s} \<union> collect_tags (tags s)"
+  apply (erule reborrow_elims)
+  apply (simp add: Let_def del: reborrow_pop_stack.simps)
+  using collect_tags_update_subset reborrow_pop_stack_subset collect_tags_spec' nth_mem by blast
 
 lemma reborrow_pointer: "reborrow k r s = (r', s') \<Longrightarrow> pointer r' = pointer r"
   apply (erule reborrow_elims)
@@ -1093,7 +1101,6 @@ lemma reborrow_update_heap: "\<lbrakk>wf_heap s; writable r s; reborrow k r s = 
 lemma reborrow_writable: "\<lbrakk>wf_heap s; writable r s; reborrow k r s = (r', s')\<rbrakk> \<Longrightarrow> writable r s'"
   apply (erule reborrow_elims)
   apply (simp add: Let_def)
-  apply (rule writable_reborrow_pop_stack)
   sorry
 
 end
