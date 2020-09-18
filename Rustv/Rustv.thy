@@ -1098,9 +1098,153 @@ lemma reborrow_update_heap: "\<lbrakk>wf_heap s; writable r s; reborrow k r s = 
   using collect_tags_reborrow_subset
   by (metis new_tag.simps pop_tags_stack.elims reborrow.simps reborrow_pop_stack.simps)
 
+lemma decomp_pop_tags_stack_writable:
+  assumes
+    "writable_stack t stack"
+    "pop_tags_stack t stack = stack'"
+    "wf_reborrow stack"
+  shows "(\<exists>rest. stack' = (Unique, {t}) # rest)
+  \<or> (\<exists>rest ts. stack' = (SharedReadWrite, ts) # rest \<and> t \<in> ts)"
+using assms proof (induction stack)
+  case Nil
+  then show ?case by simp
+next
+  case (Cons entry stack)
+  then show ?case
+  proof (cases "t \<in> snd entry")
+    case True
+    moreover have "stack' = entry # stack" using Cons.prems calculation by simp
+    moreover have "fst entry = Unique \<or> fst entry = SharedReadWrite"
+      using Cons.prems(1) Cons.prems(2) calculation(2) writable_stack_pop_tags_stack' by fastforce
+    moreover have "entry = (Unique, {t}) \<or> (\<exists>ts. entry = (SharedReadWrite, ts) \<and> t \<in> ts)"
+      using Cons calculation
+      by (metis empty_iff insert_iff prod.collapse unique_ref_head)
+    ultimately show ?thesis by simp
+  next
+    case False
+    moreover have "writable_stack t stack" using Cons.prems calculation
+      by (metis eq_snd_iff list.inject writable_stack.elims(2))
+    moreover have "pop_tags_stack t stack = stack'" using Cons.prems calculation by simp
+    moreover have "wf_reborrow stack"
+      using Cons.prems wf_reborrow_pop' calculation(2) writable_stack.simps(1) by blast
+    ultimately show ?thesis using Cons.IH by simp
+  qed
+qed
+
+lemma decomp_reborrow_pop_stack_writable:
+  assumes
+    "writable_stack t stack"
+    "reborrow_pop_stack k t' t stack = stack'"
+    "wf_reborrow stack"
+    "t' \<notin> collect_tags_stack stack"
+  shows "
+  (\<exists>rest. k = Unique \<and> stack' = (Unique, {t'}) # (Unique, {t}) # rest)
+  \<or> (\<exists>rest. k = SharedReadWrite \<and> stack' = (SharedReadWrite, {t'}) # (Unique, {t}) # rest)
+  \<or> (\<exists>rest. k = SharedReadOnly \<and> stack' = (SharedReadOnly, {t'}) # (Unique, {t}) # rest)
+  \<or> (\<exists>rest ts. k = Unique \<and>  stack' = (Unique, {t'}) # (SharedReadWrite, ts) # rest \<and> t \<in> ts)
+  \<or> (\<exists>rest ts. k = SharedReadWrite \<and> stack' = (SharedReadWrite, insert t' ts) # rest \<and> t \<in> ts)
+  \<or> (\<exists>rest ts. k = SharedReadOnly \<and> stack' = (SharedReadOnly, {t'}) # (SharedReadWrite, ts) # rest \<and> t \<in> ts)"
+proof -
+  have *: "reborrow_stack k t' (pop_tags_stack t stack) = stack'" (is "reborrow_stack _ _ ?popped = _")
+    using assms by simp
+  then have "(\<exists>rest. ?popped = (Unique, {t}) # rest)
+  \<or> (\<exists>rest ts. ?popped = (SharedReadWrite, ts) # rest \<and> t \<in> ts)"
+    using assms decomp_pop_tags_stack_writable by simp
+  then show ?thesis
+  proof
+    assume "\<exists>rest. ?popped = (Unique, {t}) # rest"
+    then show ?thesis
+      using assms
+      by (metis (full_types) "*" reborrow_stack.simps(1) reborrow_stack.simps(3)
+          reborrow_stack.simps(5) ref_kind.exhaust)
+  next
+    assume "\<exists>rest ts. ?popped = (SharedReadWrite, ts) # rest \<and> t \<in> ts"
+    then show ?thesis
+      using assms
+      by (metis (full_types) * reborrow_stack.simps(2) reborrow_stack.simps(4)
+          reborrow_stack.simps(6) ref_kind.exhaust)
+  qed
+qed
+
+lemma decomp_reborrow_pop_stack_writable_elims[
+  consumes 4,
+  case_names UniqueUnique SRWUnique SROUnique UniqueSRW SRWSRW SROSRW
+  ]:
+  assumes
+    "writable_stack t stack"
+    "reborrow_pop_stack k t' t stack = stack'"
+    "wf_reborrow stack"
+    "t' \<notin> collect_tags_stack stack"
+    "\<exists>rest. k = Unique \<and> stack' = (Unique, {t'}) # (Unique, {t}) # rest \<Longrightarrow> P"
+    "\<exists>rest. k = SharedReadWrite \<and> stack' = (SharedReadWrite, {t'}) # (Unique, {t}) # rest \<Longrightarrow> P"
+    "\<exists>rest. k = SharedReadOnly \<and> stack' = (SharedReadOnly, {t'}) # (Unique, {t}) # rest \<Longrightarrow> P"
+    "\<exists>rest ts. k = Unique \<and> stack' = (Unique, {t'}) # (SharedReadWrite, ts) # rest \<and> t \<in> ts \<Longrightarrow> P"
+    "\<exists>rest ts. k = SharedReadWrite \<and> stack' = (SharedReadWrite, insert t' ts) # rest \<and> t \<in> ts \<Longrightarrow> P"
+    "\<exists>rest ts. k = SharedReadOnly \<and> stack' = (SharedReadOnly, {t'}) # (SharedReadWrite, ts) # rest \<and> t \<in> ts \<Longrightarrow> P"
+  shows "P"
+  using decomp_reborrow_pop_stack_writable assms by blast
+
+lemma writable_stack_reborrow_pop_stack:
+  assumes
+    "writable_stack t stack"
+    "reborrow_pop_stack k t' t stack = stack'"
+    "wf_reborrow stack"
+    "t' \<notin> collect_tags_stack stack"
+  shows "writable_stack t stack'"
+using assms proof (cases rule: decomp_reborrow_pop_stack_writable_elims)
+  case SROUnique
+  then show ?thesis using assms writable_stack_in_collect_tags by fastforce
+next
+  case SROSRW
+  then show ?thesis using assms writable_stack_in_collect_tags by fastforce
+qed auto
+
+lemma writable_stack_reborrow_pop_stack_derived:
+  assumes
+    "writable_stack t stack"
+    "reborrow_pop_stack k t' t stack = stack'"
+    "wf_reborrow stack"
+    "t' \<notin> collect_tags_stack stack"
+    "k = Unique \<or> k = SharedReadWrite"
+  shows "writable_stack t' stack'"
+using assms proof (cases rule: decomp_reborrow_pop_stack_writable_elims)
+qed auto
+
 lemma reborrow_writable: "\<lbrakk>wf_heap s; writable r s; reborrow k r s = (r', s')\<rbrakk> \<Longrightarrow> writable r s'"
   apply (erule reborrow_elims)
-  apply (simp add: Let_def)
-  sorry
+  apply (simp add: Let_def del: reborrow_pop_stack.simps)
+  apply (rule writable_stack_reborrow_pop_stack)
+     apply blast
+    apply blast
+  using wf_tags_spec nth_mem apply blast
+  using new_tag_notin_at by auto
+
+lemma reborrow_writable_derived:
+  assumes
+    "wf_heap s"
+    "writable r s"
+    "reborrow k r s = (r', s')"
+    "k = Unique \<or> k = SharedReadWrite"
+  shows "writable r' s'"
+  using assms(3) apply (rule reborrow_elims)
+  using assms apply (simp add: Let_def del: reborrow_pop_stack.simps)
+  apply (rule writable_stack_reborrow_pop_stack_derived[of "tag r" "tags s ! the_ptr (pointer r)" k])
+  using wf_tags_spec apply auto[3]
+  using new_tag_notin_at by auto
+
+lemma lemma_for_write_ex1:
+  assumes
+    "the_ptr (pointer p) < length ts"
+    "\<exists>x \<in> set (ts ! the_ptr (pointer p)). t \<in> snd x"
+  shows "t \<in> collect_tags ts"
+  using assms collect_tags_spec nth_mem by auto
+
+lemma lemma_for_write_ex:
+  assumes
+    "the_ptr (pointer p) < length ts"
+    "collect_tags ts \<subseteq> set issued"
+  shows "\<forall>x \<in> set (ts ! the_ptr (pointer p)). tag_val (Suc (max_list (map the_tag issued))) \<notin> snd x"
+  using assms lemma_for_write_ex1
+  by (metis Suc_n_not_le_n in_set_conv_nth length_map max_list_ge nth_map subsetD the_tag.simps)
 
 end
