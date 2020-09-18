@@ -8,7 +8,7 @@ record deriv_env = globals_ram +
 
 definition deriv_body :: "(deriv_env, 'p, rust_error) com" where
   "deriv_body = Guard invalid_ref {s. writable (p s) s}
-    (Seq (Basic (\<lambda>s. invalidate_children (p s) s))
+    (Seq (Basic (\<lambda>s. pop_tags (p s) s))
          (Basic (\<lambda>s. (memwrite (p s) (int_val 101) s))))"
 
 lemma partial: "\<Gamma> \<turnstile> {s. writable (p s) s} deriv_body {s. memory s ! (the_ptr (pointer (p s))) = int_val 101}"
@@ -47,13 +47,14 @@ lemma "\<Gamma> \<turnstile>\<^sub>t {s. writable (p s) s \<and> wf_heap s} deri
    prefer 2
    apply vcg_step
    apply vcg_step
-  by (auto simp add: Let_def)
+  apply (auto simp add: Let_def)
+  using writable_stack_pop_tags_stack by auto
 
 definition reb_body :: "(deriv_env, 'p, rust_error) com" where
   "reb_body = Guard invalid_ref {s. writable (p s) s}
-    (Seq (Basic (\<lambda>s. invalidate_children (p s) s))
+    (Seq (Basic (\<lambda>s. pop_tags (p s) s))
          (Basic (\<lambda>s.
-           (let (p', s') = reborrow (p s) s in
+           (let (p', s') = reborrow Unique (p s) s in
            s'\<lparr> x := p' \<rparr>))))"
 
 lemma "\<Gamma> \<turnstile>\<^sub>t
@@ -61,11 +62,11 @@ lemma "\<Gamma> \<turnstile>\<^sub>t
   reb_body
   {s. writable (x s) s}"
   unfolding reb_body_def
-  apply vcg_step
-   prefer 2
-   apply vcg_step
-   apply vcg_step
-  apply (simp add: Let_def)
+  apply vcg
+  apply (auto simp add: Let_def)
+  apply (rule writable_stack_reborrow_pop_stack_derived, simp_all)
+  using wf_tags_spec apply simp
+   apply (rule lemma_for_write_ex)
   by auto
 
 end
