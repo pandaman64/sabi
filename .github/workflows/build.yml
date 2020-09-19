@@ -27,7 +27,7 @@ jobs:
           args: "build -d Simpl -D . -v -b"
 
       - name: Show heaps
-        run: ls -al "$GITHUB_WORKSPACE/heaps" heaps
+        run: ls -al .
 
       - name: Upload heaps
         uses: actions/upload-artifact@v2
