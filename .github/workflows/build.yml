@@ -13,6 +13,13 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
+      - name: Cache Isabelle Heaps
+        uses: actions/cache@v2.1.1
+        with:
+          key: ${{ runner.os }}-Isabelle2020
+          path: |
+            - /root/.isabelle/Isabelle2020
+
       - name: Build sessions
         uses: pandaman64/isabelle-action@v1
         with:
