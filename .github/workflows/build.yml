@@ -19,7 +19,7 @@ jobs:
           key: ${{ runner.os }}-Isabelle2020-${{ hashFiles('ROOT') }}
           # Heap path($ISABELLE_HEAPS)
           path: |
-            - ./.heaps
+            - .heaps
 
       - name: Show heap cache dir
         run: ls -al .
@@ -28,13 +28,13 @@ jobs:
         uses: pandaman64/isabelle-action@v1.1-test
         with:
           args: "build -b -d Simpl -D . -v"
-          heapCacheDir: ./.heaps
+          heapCacheDir: .heaps
 
       - name: Show heap cache dir
-        run: ls -al ./.heaps .
+        run: ls -al .heaps .
 
       - name: Upload heaps
         uses: actions/upload-artifact@v2
         with:
           name: heaps
-          path: ./.heaps
+          path: .heaps
