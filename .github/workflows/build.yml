@@ -27,7 +27,7 @@ jobs:
           args: "build -d Simpl -D . -v"
 
       - name: Show heaps
-        run: ls -al /root/.isabelle /root/.isabelle/Isabelle2020 /root/.isabelle/Isabelle2020/heaps
+        run: sudo ls -al /root/.isabelle /root/.isabelle/Isabelle2020 /root/.isabelle/Isabelle2020/heaps
 
       - name: Upload heaps
         uses: actions/upload-artifact@v2
