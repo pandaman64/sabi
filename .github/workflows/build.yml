@@ -21,6 +21,9 @@ jobs:
           path: |
             - .heaps
 
+      - name: Setup tmate session
+        uses: mxschmitt/action-tmate@v3
+
       - name: Show heap cache dir
         run: ls -al .
 
