@@ -22,7 +22,7 @@ jobs:
             - ./.heaps
 
       - name: Show heap cache dir
-        run: ls -al ./.heaps .
+        run: ls -al .
 
       - name: Build sessions
         uses: pandaman64/isabelle-action@v1.1-test
