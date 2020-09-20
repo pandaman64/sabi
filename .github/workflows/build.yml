@@ -13,7 +13,27 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
-      - name: Build sessions
-        uses: pandaman64/isabelle-action@v1
+      # As actions/cache@v2 saves files only once per each key,
+      # we use different keys (by github.run_id) for each job,
+      # though retrieving old cache via restore-keys.
+      # https://github.com/actions/cache/issues/342#issuecomment-673371329
+      - name: Cache Isabelle Heaps
+        uses: actions/cache@v2
         with:
-          args: "build -d Simpl -D . -v"
+          key: ${{ runner.os }}-Isabelle2020-${{ hashFiles('ROOT') }}-${{ github.run_id }}
+          # Heap path($ISABELLE_HEAPS)
+          path: .heaps
+          restore-keys: |
+            ${{ runner.os }}-Isabelle2020-${{ hashFiles('ROOT') }}
+
+      - name: Build sessions
+        uses: pandaman64/isabelle-action@v1.1
+        with:
+          args: "build -b -d Simpl -D . -v"
+          heapCacheDir: .heaps
+
+      - name: Upload heaps
+        uses: actions/upload-artifact@v2
+        with:
+          name: heaps
+          path: .heaps
