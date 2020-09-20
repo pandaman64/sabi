@@ -13,6 +13,9 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
+      # As actions/cache@v2 saves files only once per each key,
+      # we use different keys (by github.run_id) for each job,
+      # though retrieving old cache via restore-keys.
       # https://github.com/actions/cache/issues/342#issuecomment-673371329
       - name: Cache Isabelle Heaps
         uses: actions/cache@v2
@@ -23,20 +26,11 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-Isabelle2020-${{ hashFiles('ROOT') }}
 
-      # - name: Setup tmate session
-      #   uses: mxschmitt/action-tmate@v3
-
-      - name: Show heap cache dir
-        run: ls -al .
-
       - name: Build sessions
-        uses: pandaman64/isabelle-action@v1.1-test
+        uses: pandaman64/isabelle-action@v1.1
         with:
           args: "build -b -d Simpl -D . -v"
           heapCacheDir: .heaps
-
-      - name: Show heap cache dir
-        run: ls -al .heaps .
 
       - name: Upload heaps
         uses: actions/upload-artifact@v2
