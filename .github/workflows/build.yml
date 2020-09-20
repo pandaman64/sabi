@@ -13,13 +13,15 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
+      # https://github.com/actions/cache/issues/342#issuecomment-673371329
       - name: Cache Isabelle Heaps
         uses: actions/cache@v2
         with:
-          key: ${{ runner.os }}-Isabelle2020-${{ hashFiles('ROOT') }}
+          key: ${{ runner.os }}-Isabelle2020-${{ hashFiles('ROOT') }}-${{ github.run_id }}
           # Heap path($ISABELLE_HEAPS)
-          path: |
-            - .heaps
+          path: .heaps
+          restore-keys: |
+            ${{ runner.os }}-Isabelle2020-${{ hashFiles('ROOT') }}
 
       # - name: Setup tmate session
       #   uses: mxschmitt/action-tmate@v3
