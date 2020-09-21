@@ -21,7 +21,6 @@ jobs:
         uses: actions/cache@v2
         with:
           key: ${{ runner.os }}-Isabelle2020-${{ hashFiles('ROOT') }}-${{ github.run_id }}
-          # Heap path($ISABELLE_HEAPS)
           path: .heaps
           restore-keys: |
             ${{ runner.os }}-Isabelle2020-${{ hashFiles('ROOT') }}
