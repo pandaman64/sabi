@@ -3,6 +3,8 @@ session "Rust-Verification" in "Rustv" = Simpl +
   sessions
     "Simpl"
   theories [show_question_marks = false]
+    Defs
+    BorrowStack
     Rustv
   (*
   document_files

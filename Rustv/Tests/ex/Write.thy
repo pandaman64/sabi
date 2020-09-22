@@ -48,7 +48,7 @@ lemma "\<Gamma> \<turnstile>\<^sub>t {s. writable (p s) s \<and> wf_heap s} deri
    apply vcg_step
    apply vcg_step
   apply (auto simp add: Let_def)
-  using writable_stack_pop_tags_stack by auto
+  using writable_pop_tags by auto
 
 definition reb_body :: "(deriv_env, 'p, rust_error) com" where
   "reb_body = Guard invalid_ref {s. writable (p s) s}
@@ -64,9 +64,7 @@ lemma "\<Gamma> \<turnstile>\<^sub>t
   unfolding reb_body_def
   apply vcg
   apply (auto simp add: Let_def)
-  apply (rule writable_stack_reborrow_pop_stack_derived, simp_all)
-  using wf_tags_spec apply simp
-   apply (rule lemma_for_write_ex)
-  by auto
+  apply (rule writable_reborrow_pop_derived, simp_all)
+  using wf_tags_spec by auto
 
 end
