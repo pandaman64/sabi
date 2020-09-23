@@ -42,6 +42,51 @@ inductive wf_reborrow :: "(ref_kind * tag set) stack \<Rightarrow> bool" where
 
 inductive_cases wf_reborrow_elims: "wf_reborrow stack"
 
+(* convenient intro rules *)
+lemma BorrowRoot'[intro]:
+  assumes
+    "k = Unique"
+    "is_singleton ts"
+    "tail = []"
+  shows "wf_reborrow ((k, ts) # tail)"
+  using BorrowRoot assms is_singletonE by auto
+
+lemma ReborrowUniqueUnique'[intro]:
+  assumes
+    "k = Unique"
+    "is_singleton ts"
+    "ts \<inter> collect_tags tail = {}"
+    "wf_reborrow tail"
+    "\<exists>t' tail'. tail = ((Unique, {t'}) # tail')"
+  shows "wf_reborrow ((k, ts) # tail)"
+proof -
+  obtain t t' tail' where
+    "ts = {t}"
+    "tail = (Unique, {t'}) # tail'"
+    using assms is_singletonE by metis
+  moreover have "wf_reborrow ((Unique, {t}) # (Unique, {t'}) # tail')"
+    using ReborrowUniqueUnique assms calculation by auto
+  ultimately show ?thesis using assms by auto
+qed
+
+lemma ReborrowSRWUnique'[intro]:
+  assumes
+    "k = Unique"
+    "is_singleton ts"
+    "ts \<inter> collect_tags tail = {}"
+    "wf_reborrow tail"
+    "\<exists>ts' tail'. tail = ((SharedReadWrite, ts') # tail')"
+  shows "wf_reborrow ((k, ts) # tail)"
+proof -
+  obtain t ts' tail' where
+    "ts = {t}"
+    "tail = (SharedReadWrite, ts') # tail'"
+    using assms is_singletonE by metis
+  moreover have "wf_reborrow ((Unique, {t}) # (SharedReadWrite, ts') # tail')"
+    using ReborrowSRWUnique assms calculation by auto
+  ultimately show ?thesis using assms by auto
+qed
+
 lemma wf_reborrow_nonempty:
   assumes "wf_reborrow stack"
   shows "stack \<noteq> []"

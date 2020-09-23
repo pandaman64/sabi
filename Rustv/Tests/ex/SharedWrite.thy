@@ -70,7 +70,6 @@ lemma "\<Gamma> \<turnstile>\<^sub>t {s. wf_heap s} shared_body {s. wf_heap s}"
   apply vcg
   apply (auto simp add: Let_def wf_tags_spec)
   apply (rule ReborrowSRWSRW, auto)
-  apply (rule ReborrowUniqueSRW, auto)
-  by (rule BorrowRoot)
+  by (rule ReborrowUniqueSRW, auto)
 
 end
