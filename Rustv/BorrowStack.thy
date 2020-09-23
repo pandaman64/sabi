@@ -597,30 +597,10 @@ proof -
     then show ?case using assms(3) q by blast
   next
     case (UniqueUnique ts' stack)
-    moreover obtain t' where
-      "ts' = {t'}"
-      using assms(1) calculation(1) unique_ref_head by blast
-    moreover have "wf_reborrow ((Unique, {t}) # (Unique, {t'}) # stack)"
-    proof (rule ReborrowUniqueUnique)
-      show "wf_reborrow ((Unique, {t'}) # stack)"
-        using assms(1) calculation(1) calculation(4) by auto
-    next
-      have "t \<notin> {t'} \<union> collect_tags stack"
-        using assms(2) calculation(1) calculation(4) by auto
-      then show "t \<notin> insert t' (collect_tags stack)" by simp
-    qed
-    ultimately show ?thesis by simp
+    then show ?thesis using ReborrowUniqueUnique' assms(1) assms(2) unique_ref_head by simp
   next
     case (UniqueSRW ts' stack)
-    moreover have "wf_reborrow ((Unique, {t}) # (SharedReadWrite, ts') # stack)"
-    proof (rule ReborrowSRWUnique)
-      show "wf_reborrow ((SharedReadWrite, ts') # stack)"
-        using assms(1) calculation(1) by blast
-    next
-      show "t \<notin> ts' \<union> collect_tags stack"
-        using assms(2) calculation(1) by auto
-    qed
-    ultimately show ?thesis by simp
+    then show ?thesis using ReborrowSRWUnique' assms(1) assms(2) by simp
   qed
   then show ?thesis by (simp add: q)
 qed
@@ -644,21 +624,7 @@ proof -
     then show ?case using assms(3) q by blast
   next
     case (SRWUnique ts' stack)
-    moreover obtain t' where
-      "ts' = {t'}"
-      using assms(1) calculation(1) unique_ref_head by blast
-    moreover have "wf_reborrow ((SharedReadWrite, {t}) # (Unique, {t'}) # stack)"
-    proof (rule ReborrowUniqueSRW)
-      show "wf_reborrow ((Unique, {t'}) # stack)"
-        using assms SRWUnique calculation by simp
-    next
-      have "t \<notin> {t'} \<union> (collect_tags stack)"
-        using assms(2) calculation(1) calculation(4) by auto
-      then show "t \<notin> insert t' (collect_tags stack)" by auto
-    qed
-    moreover have "wf_reborrow ((SharedReadWrite, ts) # (Unique, ts') # stack)"
-      using calculation by simp
-    ultimately show ?thesis by simp
+    then show ?thesis using assms(1) assms(2) ReborrowUniqueSRW' unique_ref_head by simp
   next
     case (SRWSRW ts')
     moreover have "wf_reborrow ((SharedReadWrite, insert t ts') # rest)"
@@ -691,30 +657,10 @@ proof -
     then show ?case using assms(3) q by blast
   next
     case (SROUnique ts' stack)
-    moreover obtain t' where
-      "ts' = {t'}"
-      using assms(1) calculation(1) unique_ref_head by blast
-    moreover have "wf_reborrow ((SharedReadOnly, {t}) # (Unique, {t'}) # stack)"
-    proof (rule ReborrowUniqueSRO)
-      show "wf_reborrow ((Unique, {t'}) # stack)"
-        using assms calculation by simp
-    next
-      have "t \<notin> {t'} \<union> collect_tags stack"
-        using assms(2) calculation(1) calculation(4) by auto
-      then show "t \<notin> insert t' (collect_tags stack)" by simp
-    qed
-    ultimately show ?thesis by (simp add: q)
+    then show ?thesis using assms(1) assms(2) ReborrowUniqueSRO' unique_ref_head by simp
   next
     case (SROSRW ts' stack)
-    moreover have "wf_reborrow ((SharedReadOnly, {t}) # (SharedReadWrite, ts') # stack)"
-    proof (rule ReborrowSRWSRO)
-      show "wf_reborrow ((SharedReadWrite, ts') # stack)"
-        using assms(1) calculation(1) by auto
-    next
-      show "t \<notin> ts' \<union> collect_tags stack"
-        using assms(2) calculation(1) by fastforce
-    qed
-    ultimately show ?thesis by (simp add: q)
+    then show ?thesis using assms(1) assms(2) ReborrowSRWSRO' by simp
   next
     case (SROSRO ts')
     moreover have "wf_reborrow ((SharedReadOnly, insert t ts') # rest)"
