@@ -429,6 +429,12 @@ lemma stack_finite_spec: "stack_finite stack \<longleftrightarrow> (\<forall>s \
 proof (induction stack)
 qed auto
 
+lemma stack_finite_wf_reborrow:
+  assumes "wf_reborrow stack"
+  shows "stack_finite stack"
+using assms proof (induction rule: wf_reborrow.induct)
+qed auto
+
 lemma collect_tags_stack_finite:
   assumes "stack_finite stack"
   shows "finite (collect_tags stack)"
