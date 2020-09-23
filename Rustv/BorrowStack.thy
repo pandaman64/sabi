@@ -87,6 +87,57 @@ proof -
   ultimately show ?thesis using assms by auto
 qed
 
+lemma ReborrowUniqueSRW'[intro]:
+  assumes
+    "k = SharedReadWrite"
+    "ts \<inter> collect_tags tail = {}"
+    "wf_reborrow tail"
+    "\<exists>t' tail'. tail = ((Unique, {t'}) # tail')"
+    "finite ts"
+    "ts \<noteq> {}"
+  shows "wf_reborrow ((k, ts) # tail)"
+using assms(5) assms(6) assms proof (induction rule: finite_ne_induct)
+  case (singleton t)
+  then show ?case using ReborrowUniqueSRW by auto
+next
+  case (insert t ts)
+  then show ?case using ReborrowSRWSRW by simp
+qed
+
+lemma ReborrowUniqueSRO'[intro]:
+  assumes
+    "k = SharedReadOnly"
+    "ts \<inter> collect_tags tail = {}"
+    "wf_reborrow tail"
+    "\<exists>t' tail'. tail = ((Unique, {t'}) # tail')"
+    "finite ts"
+    "ts \<noteq> {}"
+  shows "wf_reborrow ((k, ts) # tail)"
+using assms(5) assms(6) assms proof (induction rule: finite_ne_induct)
+  case (singleton t)
+  then show ?case using ReborrowUniqueSRO by auto
+next
+  case (insert t ts)
+  then show ?case using ReborrowSROSRO by simp
+qed
+
+lemma ReborrowSRWSRO'[intro]:
+  assumes
+    "k = SharedReadOnly"
+    "ts \<inter> collect_tags tail = {}"
+    "wf_reborrow tail"
+    "\<exists>ts' tail'. tail = ((SharedReadWrite, ts') # tail')"
+    "finite ts"
+    "ts \<noteq> {}"
+  shows "wf_reborrow ((k, ts) # tail)"
+using assms(5) assms(6) assms proof (induction rule: finite_ne_induct)
+  case (singleton t)
+  then show ?case using ReborrowSRWSRO by auto
+next
+  case (insert t ts)
+  then show ?case using ReborrowSROSRO by simp
+qed
+
 lemma wf_reborrow_nonempty:
   assumes "wf_reborrow stack"
   shows "stack \<noteq> []"

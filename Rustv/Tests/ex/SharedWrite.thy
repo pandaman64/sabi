@@ -68,8 +68,6 @@ lemma "\<Gamma> \<turnstile>\<^sub>t {s. wf_heap s} shared_body {s. True}"
 lemma "\<Gamma> \<turnstile>\<^sub>t {s. wf_heap s} shared_body {s. wf_heap s}"
   unfolding shared_body_def
   apply vcg
-  apply (auto simp add: Let_def wf_tags_spec)
-  apply (rule ReborrowSRWSRW, auto)
-  by (rule ReborrowUniqueSRW, auto)
+  by (auto simp add: Let_def wf_tags_spec)
 
 end
