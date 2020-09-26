@@ -42,6 +42,52 @@ inductive wf_reborrow :: "(ref_kind * tag set) stack \<Rightarrow> bool" where
 
 inductive_cases wf_reborrow_elims: "wf_reborrow stack"
 
+inductive_cases wf_reborrow_structure_elims:
+  "wf_reborrow []"
+  "wf_reborrow ((Unique, ts) # (Unique, ts') # tail)"
+  "wf_reborrow ((SharedReadWrite, ts) # (Unique, ts') # tail)"
+
+lemma wf_reborrow_nonempty:
+  assumes "wf_reborrow stack"
+  shows "stack \<noteq> []"
+using assms proof (rule wf_reborrow_elims)
+qed auto
+
+lemma wf_reborrow_root: "wf_reborrow stack \<Longrightarrow> \<exists>t. last stack = (Unique, {t})"
+proof (induction rule: wf_reborrow.induct)
+qed auto
+
+lemma unique_ref_head:
+  assumes "wf_reborrow ((Unique, ts) # end)"
+  shows "\<exists>t. ts = {t}"
+using assms proof (rule wf_reborrow_elims)
+qed auto
+
+lemma unique_ref:
+  assumes
+    "wf_reborrow stack"
+    "(Unique, ts) \<in> set stack"
+  shows "\<exists>t. ts = {t}"
+using assms(1) assms(2) proof (induction rule: wf_reborrow.induct)
+qed auto
+
+lemma wf_reborrow_pop:
+  assumes
+    "wf_reborrow stack"
+    "stack = st1 # st2 # rest"
+  shows "wf_reborrow (st2 # rest)"
+using assms proof (induction arbitrary: st1 rule: wf_reborrow.induct)
+qed auto
+
+lemma wf_reborrow_pop':
+  fixes top rest
+  assumes
+    "wf_reborrow (top # rest)"
+    "rest \<noteq> []"
+  shows "wf_reborrow rest"
+using assms proof (induction "(top # rest)" arbitrary: top rule: wf_reborrow.induct)
+qed auto
+
 (* convenient intro rules *)
 lemma BorrowRoot'[intro]:
   assumes
@@ -138,46 +184,129 @@ next
   then show ?case using ReborrowSROSRO by simp
 qed
 
-lemma wf_reborrow_nonempty:
-  assumes "wf_reborrow stack"
-  shows "stack \<noteq> []"
-using assms proof (rule wf_reborrow_elims)
-qed auto
-
-lemma wf_reborrow_root: "wf_reborrow stack \<Longrightarrow> \<exists>t. last stack = (Unique, {t})"
-proof (induction rule: wf_reborrow.induct)
-qed auto
-
-lemma unique_ref_head:
-  assumes "wf_reborrow ((Unique, ts) # end)"
-  shows "\<exists>t. ts = {t}"
-using assms proof (rule wf_reborrow_elims)
-qed auto
-
-lemma unique_ref:
+(* convenient elimination rules on structure of well formed borrow stack *)
+lemma wf_reborrow_elims'[
+  consumes 1,
+  case_names Root UniqueUnique UniqueSRW UniqueSRO SRWUnique SRWSRO
+  ]:
+  fixes stack
+  fixes P
   assumes
     "wf_reborrow stack"
-    "(Unique, ts) \<in> set stack"
-  shows "\<exists>t. ts = {t}"
-using assms(1) assms(2) proof (induction rule: wf_reborrow.induct)
-qed auto
+    "\<And>t. stack = [(Unique, {t})] \<Longrightarrow> P"
+    "\<And>t t' tail.
+      \<lbrakk>stack = (Unique, {t'}) # (Unique, {t}) # tail;
+      {t'} \<inter> ({t} \<union> collect_tags tail) = {};
+      wf_reborrow ((Unique, {t}) # tail)\<rbrakk> \<Longrightarrow> P"
+    "\<And>t ts' tail.
+      \<lbrakk>stack = (SharedReadWrite, ts') # (Unique, {t}) # tail;
+      ts' \<inter> ({t} \<union> collect_tags tail) = {};
+      wf_reborrow ((Unique, {t}) # tail)\<rbrakk> \<Longrightarrow> P"
+    "\<And>t ts' tail.
+      \<lbrakk>stack = (SharedReadOnly, ts') # (Unique, {t}) # tail;
+      ts' \<inter> ({t} \<union> collect_tags tail) = {};
+      wf_reborrow ((Unique, {t}) # tail)\<rbrakk> \<Longrightarrow> P"
+    "\<And>ts t' tail.
+      \<lbrakk>stack = (Unique, {t'}) # (SharedReadWrite, ts) # tail;
+      {t'} \<inter> (ts \<union> collect_tags tail) = {};
+      wf_reborrow ((SharedReadWrite, ts) # tail)\<rbrakk> \<Longrightarrow> P"
+    "\<And>ts ts' tail.
+      \<lbrakk>stack = (SharedReadOnly, ts') # (SharedReadWrite, ts) # tail;
+      ts' \<inter> (ts \<union> collect_tags tail) = {};
+      wf_reborrow ((SharedReadWrite, ts) # tail)\<rbrakk> \<Longrightarrow> P"
+  shows P
+using assms proof (induction)
+  case (BorrowRoot t)
+  then show ?case by auto
+next
+  case (ReborrowUniqueUnique t tail t')
+  then show ?case by blast
+next
+  case (ReborrowUniqueSRW t tail t')
+  then show ?case by blast
+next
+  case (ReborrowUniqueSRO t tail t')
+  then show ?case by blast
+next
+  case (ReborrowSRWUnique ts tail t')
+  then show ?case by blast
+next
+  case (ReborrowSRWSRW ts tail t)
+  then show ?case by fastforce
+next
+  case (ReborrowSRWSRO ts tail t')
+  then show ?case by simp
+next
+  case (ReborrowSROSRO ts tail t)
+  then show ?case by fastforce
+qed
 
-lemma wf_reborrow_pop:
+lemma wf_reborrow_induct'[
+  consumes 1,
+  case_names Root UniqueUnique UniqueSRW UniqueSRO SRWUnique SRWSRO
+  ]:
+  fixes stack
+  fixes P
   assumes
     "wf_reborrow stack"
-    "stack = st1 # st2 # rest"
-  shows "wf_reborrow (st2 # rest)"
-using assms proof (induction arbitrary: st1 rule: wf_reborrow.induct)
-qed auto
-
-lemma wf_reborrow_pop':
-  fixes top rest
-  assumes
-    "wf_reborrow (top # rest)"
-    "rest \<noteq> []"
-  shows "wf_reborrow rest"
-using assms proof (induction "(top # rest)" arbitrary: top rule: wf_reborrow.induct)
-qed auto
+    "\<And>t. P [(Unique, {t})]"
+    "\<And>t t' tail.
+      \<lbrakk>P ((Unique, {t}) # tail);
+      {t'} \<inter> ({t} \<union> collect_tags tail) = {};
+      wf_reborrow ((Unique, {t}) # tail)\<rbrakk>
+      \<Longrightarrow> P ((Unique, {t'}) # (Unique, {t}) # tail)"
+    "\<And>t ts' tail.
+      \<lbrakk>P ((Unique, {t}) # tail);
+      ts' \<inter> ({t} \<union> collect_tags tail) = {};
+      wf_reborrow ((Unique, {t}) # tail)\<rbrakk>
+      \<Longrightarrow> P ((SharedReadWrite, ts') # (Unique, {t}) # tail)"
+    "\<And>t ts' tail.
+      \<lbrakk>P ((Unique, {t}) # tail);
+      ts' \<inter> ({t} \<union> collect_tags tail) = {};
+      wf_reborrow ((Unique, {t}) # tail)\<rbrakk>
+      \<Longrightarrow> P ((SharedReadOnly, ts') # (Unique, {t}) # tail)"
+    "\<And>ts t' tail.
+      \<lbrakk>P ((SharedReadWrite, ts) # tail);
+      {t'} \<inter> (ts \<union> collect_tags tail) = {};
+      wf_reborrow ((SharedReadWrite, ts) # tail)\<rbrakk>
+      \<Longrightarrow> P ((Unique, {t'}) # (SharedReadWrite, ts) # tail)"
+    "\<And>ts ts' tail.
+      \<lbrakk>P ((SharedReadWrite, ts) # tail);
+      ts' \<inter> (ts \<union> collect_tags tail) = {};
+      wf_reborrow ((SharedReadWrite, ts) # tail)\<rbrakk>
+      \<Longrightarrow> P ((SharedReadOnly, ts') # (SharedReadWrite, ts) # tail)"
+  shows "P stack"
+proof -
+  have "stack \<noteq> []"
+    using assms(1) wf_reborrow_nonempty by simp
+  then show ?thesis
+  using assms proof (induction rule: list_nonempty_induct)
+    case (single entry)
+    then show ?case by (metis last_ConsL wf_reborrow_root)
+  next
+    case (cons entry stack)
+    show ?case
+    using cons.prems(1) proof (cases "(entry # stack)" rule: wf_reborrow_elims')
+      case (Root t)
+      then show ?thesis using assms by simp
+    next
+      case (UniqueUnique t t' tail)
+      then show ?thesis using assms cons by simp
+    next
+      case (UniqueSRW t ts' tail)
+      then show ?thesis using assms cons by simp
+    next
+      case (UniqueSRO t ts' tail)
+      then show ?thesis using assms cons by simp
+    next
+      case (SRWUnique ts t' tail)
+      then show ?thesis using assms cons by simp
+    next
+      case (SRWSRO ts ts' tail)
+      then show ?thesis using assms cons by simp
+    qed
+  qed
+qed
 
 lemma shared_read_only_top:
   assumes
@@ -429,7 +558,7 @@ lemma stack_finite_spec: "stack_finite stack \<longleftrightarrow> (\<forall>s \
 proof (induction stack)
 qed auto
 
-lemma stack_finite_wf_reborrow:
+lemma stack_finite_wf_reborrow[intro]:
   assumes "wf_reborrow stack"
   shows "stack_finite stack"
 using assms proof (induction rule: wf_reborrow.induct)
@@ -873,7 +1002,7 @@ proof -
   qed
 qed
 
-lemma decomp_reborrow_pop_writable_elims[
+lemma decomp_reborrow_pop_writable_elims'[
   consumes 3,
   case_names UniqueUnique SRWUnique SROUnique UniqueSRW SRWSRW SROSRW
   ]:
@@ -889,6 +1018,24 @@ lemma decomp_reborrow_pop_writable_elims[
     "\<exists>rest ts. k = SharedReadOnly \<and> stack' = (SharedReadOnly, {t'}) # (SharedReadWrite, ts) # rest \<and> t \<in> ts \<Longrightarrow> P"
   shows "P"
   using decomp_reborrow_pop_writable assms by blast
+
+lemma decomp_reborrow_pop_writable_elims[
+  consumes 3,
+  case_names UniqueUnique SRWUnique SROUnique UniqueSRW SRWSRW SROSRW
+  ]:
+  assumes
+    "writable t stack"
+    "reborrow_pop k t' t stack = stack'"
+    "wf_reborrow stack"
+    "\<And>rest. k = Unique \<and> stack' = (Unique, {t'}) # (Unique, {t}) # rest \<Longrightarrow> P"
+    "\<And>rest. k = SharedReadWrite \<and> stack' = (SharedReadWrite, {t'}) # (Unique, {t}) # rest \<Longrightarrow> P"
+    "\<And>rest. k = SharedReadOnly \<and> stack' = (SharedReadOnly, {t'}) # (Unique, {t}) # rest \<Longrightarrow> P"
+    "\<And>rest ts. k = Unique \<and> stack' = (Unique, {t'}) # (SharedReadWrite, ts) # rest \<and> t \<in> ts \<Longrightarrow> P"
+    "\<And>rest ts. k = SharedReadWrite \<and> stack' = (SharedReadWrite, insert t' ts) # rest \<and> t \<in> ts \<Longrightarrow> P"
+    "\<And>rest ts. k = SharedReadOnly \<and> stack' = (SharedReadOnly, {t'}) # (SharedReadWrite, ts) # rest \<and> t \<in> ts \<Longrightarrow> P"
+  shows "P"
+using assms proof (cases rule: decomp_reborrow_pop_writable_elims')
+qed auto
 
 lemma writable_reborrow_pop:
   assumes
