@@ -71,7 +71,7 @@ lemma unique_ref:
 using assms(1) assms(2) proof (induction rule: wf_reborrow.induct)
 qed auto
 
-lemma wf_reborrow_comp:
+lemma wf_reborrow_pop:
   assumes
     "wf_reborrow stack"
     "stack = st1 # st2 # rest"
@@ -79,7 +79,7 @@ lemma wf_reborrow_comp:
 using assms proof (induction arbitrary: st1 rule: wf_reborrow.induct)
 qed auto
 
-lemma wf_reborrow_comp':
+lemma wf_reborrow_pop':
   fixes top rest
   assumes
     "wf_reborrow (top # rest)"
@@ -596,7 +596,7 @@ next
     case True
     moreover have "dropWhile P rest \<noteq> []" using Cons.prems calculation by auto
     moreover have "rest \<noteq> []" using calculation by auto
-    moreover have "wf_reborrow rest" using calculation Cons.prems wf_reborrow_comp' by auto
+    moreover have "wf_reborrow rest" using calculation Cons.prems wf_reborrow_pop' by auto
     ultimately show ?thesis using Cons.IH by auto
   next
     case False
@@ -622,6 +622,16 @@ next
   qed
 qed
 
+fun readable :: "tag \<Rightarrow> (ref_kind * tag set) stack \<Rightarrow> bool" where
+  "readable t [] \<longleftrightarrow> False" |
+  "readable t ((k, ts) # stack) \<longleftrightarrow>
+    (if t \<in> ts then True else readable t stack)"
+
+lemma readable_spec[simp]:
+  "readable t stack \<longleftrightarrow> t \<in> collect_tags stack"
+proof (induction stack, auto)
+qed
+
 fun writable :: "tag \<Rightarrow> (ref_kind * tag set) stack \<Rightarrow> bool" where
   "writable t [] \<longleftrightarrow> False" |
   "writable t ((k, ts) # stack) \<longleftrightarrow>
@@ -634,6 +644,28 @@ using assms proof (induction stack)
   case (Cons entry stack)
   then show ?case using writable.elims(2) by fastforce
 qed auto
+
+lemma writable_tl:
+  assumes
+    "writable t stack"
+    "t \<notin> snd (hd stack)"
+  shows "writable t (tl stack)"
+using assms proof (induction stack)
+  case Nil
+  then show ?case by simp
+next
+  case (Cons entry stack)
+  then obtain k ts where
+    "entry = (k, ts)"
+    "t \<notin> ts"
+    by (metis eq_snd_iff list.sel(1))
+  then show ?case using writable.simps(2) Cons.prems(1) by auto
+qed
+
+lemma writable_implies_readable:
+  assumes "writable t stack"
+  shows "readable t stack"
+  using assms readable_spec writable_in_collect_tags by auto
 
 lemma writable_the_index:
   assumes
@@ -704,9 +736,138 @@ inductive reborrow'
       ((SharedReadOnly, ts) # tail)
       ((SharedReadOnly, insert deriv ts) # tail)" |
   DerivPop:
-    "\<lbrakk>reborrow' k deriv orig tail stack;
-      orig \<notin> snd entry\<rbrakk>
+    "\<lbrakk>reborrow' k deriv orig tail stack; orig \<notin> snd entry\<rbrakk>
     \<Longrightarrow> reborrow' k deriv orig (entry # tail) stack"
+
+lemma reborrow'_nonempty_src:
+  "reborrow' k deriv orig stack stack' \<Longrightarrow> stack \<noteq> []"
+  using reborrow'.simps by blast
+
+lemma ex_reborrow'_writable:
+  assumes
+    "wf_reborrow stack"
+    "writable orig stack"
+  shows "\<exists>stack'. reborrow' k deriv orig stack stack'"
+using assms proof (induction rule: wf_reborrow_induct')
+  case (Root t)
+  then show ?case
+    by (metis (full_types) DerivUniqueSRO DerivUniqueSRW DerivUniqueUnique empty_iff insert_iff
+        ref_kind.exhaust writable.simps(1) writable.simps(2))
+next
+  case (UniqueUnique t t' tail)
+  then show ?case
+    by (metis (full_types) DerivPop DerivUniqueSRO DerivUniqueSRW DerivUniqueUnique
+        ref_kind.exhaust singletonD snd_conv writable.simps(2))
+next
+  case (UniqueSRW t ts' tail)
+  then show ?case
+    by (metis (full_types) DerivPop DerivSRWSRO DerivSRWSRW DerivSRWUnique
+        ref_kind.exhaust snd_eqD writable.simps(2))
+next
+  case (UniqueSRO t ts' tail)
+  then show ?case
+    by (metis DerivPop ref_kind.distinct(3) ref_kind.distinct(5) snd_conv writable.simps(2))
+next
+  case (SRWUnique ts t' tail)
+  then show ?case
+    by (metis (full_types) DerivPop DerivUniqueSRO DerivUniqueSRW DerivUniqueUnique
+        ref_kind.exhaust singletonD snd_eqD writable.simps(2))
+next
+  case (SRWSRO ts ts' tail)
+  then show ?case
+    by (metis DerivPop ref_kind.distinct(3) ref_kind.distinct(5) sndI writable.simps(2))
+qed
+
+lemma ex_reborrow'_readable:
+  assumes
+    "wf_reborrow stack"
+    "readable orig stack"
+    "k = SharedReadOnly"
+  shows "\<exists>stack'. reborrow' k deriv orig stack stack'"
+using assms proof (induction rule: wf_reborrow_induct')
+  case (Root t)
+  then show ?case using DerivUniqueSRO by auto
+next
+  case (UniqueUnique t t' tail)
+  then show ?case
+  proof (cases "t' = orig")
+    case True
+    then show ?thesis using UniqueUnique DerivUniqueSRO by auto
+  next
+    case False
+    then show ?thesis
+    proof -
+      obtain stack' where
+        "reborrow' k deriv orig ((Unique, {t}) # tail) stack'"
+        using UniqueUnique False by auto
+      then show ?thesis using False DerivPop by force
+    qed
+  qed
+next
+  case (UniqueSRW t ts' tail)
+  then show ?case
+  proof (cases "orig \<in> ts'")
+    case True
+    then show ?thesis using UniqueSRW DerivSRWSRO by blast
+  next
+    case False
+    then show ?thesis
+    proof -
+      obtain stack' where
+        "reborrow' k deriv orig ((Unique, {t}) # tail) stack'"
+        using UniqueSRW False by auto
+      then show ?thesis using False DerivPop by force
+    qed
+  qed
+next
+  case (UniqueSRO t ts' tail)
+  then show ?case
+  proof (cases "orig \<in> ts'")
+    case True
+    then show ?thesis using UniqueSRO DerivSROSRO by blast
+  next
+    case False
+    then show ?thesis
+    proof -
+      obtain stack' where
+        "reborrow' k deriv orig ((Unique, {t}) # tail) stack'"
+        using UniqueSRO False by auto
+      then show ?thesis using False DerivPop by force
+    qed
+  qed
+next
+  case (SRWUnique ts t' tail)
+  then show ?case
+  proof (cases "t' = orig")
+    case True
+    then show ?thesis using SRWUnique DerivUniqueSRO by auto
+  next
+    case False
+    then show ?thesis
+    proof -
+      obtain stack' where
+        "reborrow' k deriv orig ((SharedReadWrite, ts) # tail) stack'"
+        using SRWUnique False by auto
+      then show ?thesis using False DerivPop by force
+    qed
+  qed
+next
+  case (SRWSRO ts ts' tail)
+  then show ?case
+  proof (cases "orig \<in> ts'")
+    case True
+    then show ?thesis using SRWSRO DerivSROSRO by blast
+  next
+    case False
+    then show ?thesis
+    proof -
+      obtain stack' where
+        "reborrow' k deriv orig ((SharedReadWrite, ts) # tail) stack'"
+        using SRWSRO False by auto
+      then show ?thesis using False DerivPop by force
+    qed
+  qed
+qed
 
 (* computational definition of reborrow *)
 fun reborrow :: "ref_kind \<Rightarrow> tag \<Rightarrow> (ref_kind * tag set) stack \<Rightarrow> (ref_kind * tag set) stack"
@@ -732,21 +893,26 @@ fun reborrow :: "ref_kind \<Rightarrow> tag \<Rightarrow> (ref_kind * tag set) s
   "reborrow Unique _ ((SharedReadOnly, _) # stack) = []" |
   "reborrow SharedReadWrite _ ((SharedReadOnly, _) # stack) = []"
 
-fun reborrow_comp :: "ref_kind \<Rightarrow> tag \<Rightarrow> tag \<Rightarrow> (ref_kind * tag set) stack \<Rightarrow> (ref_kind * tag set) stack" where
+fun reborrow_comp
+  :: "ref_kind \<Rightarrow> tag \<Rightarrow> tag \<Rightarrow> (ref_kind * tag set) stack \<Rightarrow> (ref_kind * tag set) stack" where
   "reborrow_comp k child parent stack =
     reborrow k child (pop_tags parent stack)"
 
-lemma reborrow_ind[intro]:
+fun reborrow_ind
+  :: "ref_kind \<Rightarrow> tag \<Rightarrow> tag \<Rightarrow> (ref_kind * tag set) stack \<Rightarrow> (ref_kind * tag set) stack" where
+  "reborrow_ind k deriv orig stack = (THE stack'. reborrow' k deriv orig stack stack')"
+
+lemma reborrow_by_comp[simp, intro]:
   "reborrow' k deriv orig stack stack' \<Longrightarrow> reborrow_comp k deriv orig stack = stack'"
 proof (induction rule: reborrow'.induct)
 qed simp_all
 
-lemma reborrow_ind_unique:
+lemma reborrow_unique:
   assumes
     "reborrow' k deriv orig stack stack'"
     "reborrow' k deriv orig stack stack''"
   shows "stack' = stack''"
-  using assms(1) assms(2) reborrow_ind by blast
+  using assms(1) assms(2) reborrow_by_comp by blast
 
 lemma reborrow_comp_pop:
   assumes "orig \<notin> snd entry"
@@ -754,13 +920,34 @@ lemma reborrow_comp_pop:
 using assms proof (induction stack, auto)
 qed
 
+lemma the_reborrow'_writable:
+  assumes
+    "wf_reborrow stack"
+    "writable orig stack"
+  shows "\<exists>!stack'. reborrow' k deriv orig stack stack'"
+  using assms ex_reborrow'_writable reborrow_unique by auto
+
+lemma the_reborrow'_readable:
+  assumes
+    "wf_reborrow stack"
+    "readable orig stack"
+    "k = SharedReadOnly"
+  shows "\<exists>!stack'. reborrow' k deriv orig stack stack'"
+  using assms ex_reborrow'_readable reborrow_unique by fastforce
+
 lemma reborrow_hd:
   assumes
-    "reborrow r t stack = stack'"
+    "reborrow k t stack = stack'"
     "stack' \<noteq> []"
-  shows "r = fst (hd stack') \<and> t \<in> snd (hd stack')"
+  shows "k = fst (hd stack') \<and> t \<in> snd (hd stack')"
 using assms proof (cases rule: reborrow.elims)
 qed auto
+
+lemma reborrow'_hd:
+  assumes "reborrow' k deriv orig stack stack'"
+  shows "k = fst (hd stack') \<and> deriv \<in> snd (hd stack')"
+using assms proof (induction rule: reborrow'.induct, auto)
+qed
 
 fun_cases reborrow_elims_Unique[case_names _ UniqueUnique UniqueSRW]:
   "reborrow Unique t stack = (Unique, ts) # stack'"
@@ -884,6 +1071,17 @@ next
   then show ?thesis using assms wf_reborrow_reborrow_SRO by simp
 qed
 
+lemma wf_reborrow_reborrow':
+  assumes
+    "reborrow' k deriv orig stack stack'"
+    "wf_reborrow stack"
+    "deriv \<notin> collect_tags stack"
+  shows "wf_reborrow stack'"
+using assms proof (induction)
+  case (DerivPop k deriv orig tail stack entry)
+  then show ?case using reborrow'_nonempty_src wf_reborrow_pop' by auto
+qed (auto simp add: ReborrowSRWSRW ReborrowSROSRO)
+
 lemma collect_tags_reborrow_subset:
   assumes "reborrow k t stack = stack'"
   shows "collect_tags stack' \<subseteq> {t} \<union> collect_tags stack"
@@ -897,6 +1095,14 @@ lemma stack_finite_reborrow:
   shows "stack_finite stack'"
 using assms collect_tags_reborrow_subset stack_finite_finite_collect_tags
   by (meson collect_tags_stack_finite finite.emptyI finite.insertI finite_Un finite_subset)
+
+lemma stack_finite_reborrow':
+  assumes
+    "reborrow' k deriv orig stack stack'"
+    "stack_finite stack"
+  shows "stack_finite stack'"
+using assms proof (induction, auto)
+qed
 
 lemma notin_pop_tags:
   assumes "pop_tags t stack = stack'"
@@ -981,6 +1187,12 @@ proof -
   qed
 qed
 
+lemma reborrow'_subset:
+  assumes "reborrow' k deriv orig stack stack'"
+  shows "collect_tags stack' \<subseteq> {deriv} \<union> collect_tags stack"
+using assms proof (induction, auto)
+qed
+
 lemma reborrow_comp_subset:
   "collect_tags (reborrow_comp k child parent stack) \<subseteq> {child} \<union> collect_tags stack"
 proof (induction stack arbitrary: child parent)
@@ -1021,7 +1233,7 @@ next
       by (metis eq_snd_iff list.inject writable.elims(2))
     moreover have "pop_tags t stack = stack'" using Cons.prems calculation by simp
     moreover have "wf_reborrow stack"
-      using Cons.prems wf_reborrow_comp' calculation(2) writable.simps(1) by blast
+      using Cons.prems wf_reborrow_pop' calculation(2) writable.simps(1) by blast
     ultimately show ?thesis using Cons.IH by simp
   qed
 qed
@@ -1118,6 +1330,44 @@ lemma writable_reborrow_comp_derived:
     "k = Unique \<or> k = SharedReadWrite"
   shows "writable t' stack'"
 using assms proof (cases rule: decomp_reborrow_comp_writable_elims)
+qed auto
+
+lemma writable_reborrow:
+  assumes
+    "reborrow' k deriv orig stack stack'"
+    "wf_reborrow stack"
+    "writable orig stack"
+    "deriv \<notin> collect_tags stack"
+  shows "writable orig stack'"
+using assms proof (induction)
+  case (DerivPop k deriv orig tail stack entry)
+  show ?case
+  proof (rule DerivPop.IH)
+    show "wf_reborrow tail" using DerivPop wf_reborrow_pop' reborrow'_nonempty_src by simp
+  next
+    show "writable orig tail" using DerivPop writable_tl by fastforce
+  next
+    show "deriv \<notin> collect_tags tail" using DerivPop.prems by simp
+  qed
+qed auto
+
+lemma writable_reborrow_derived:
+  assumes
+    "reborrow' k deriv orig stack stack'"
+    "writable orig stack"
+    "wf_reborrow stack"
+    "k = Unique \<or> k = SharedReadWrite"
+  shows "writable deriv stack'"
+using assms proof (induction)
+  case (DerivPop k deriv orig tail stack entry)
+  show ?case
+  proof (rule DerivPop.IH)
+    show "wf_reborrow tail" using DerivPop wf_reborrow_pop' reborrow'_nonempty_src by simp
+  next
+    show "writable orig tail" using DerivPop writable_tl by fastforce
+  next
+    show "k = Unique \<or> k = SharedReadWrite" using DerivPop.prems by simp
+  qed
 qed auto
 
 end
