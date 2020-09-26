@@ -1062,4 +1062,48 @@ lemma writable_reborrow_pop_derived:
 using assms proof (cases rule: decomp_reborrow_pop_writable_elims)
 qed auto
 
+inductive reborrow'
+  :: "ref_kind \<Rightarrow> tag \<Rightarrow> tag \<Rightarrow> (ref_kind * tag set) stack \<Rightarrow> (ref_kind * tag set) stack \<Rightarrow> bool" where
+  DerivUniqueUnique:
+    "reborrow' Unique deriv orig
+      ((Unique, {orig}) # tail)
+      ((Unique, {deriv}) # (Unique, {orig}) # tail)" |
+  DerivUniqueSRW:
+    "reborrow' SharedReadWrite deriv orig
+      ((Unique, {orig}) # tail)
+      ((SharedReadWrite, {deriv}) # (Unique, {orig}) # tail)" |
+  DerivUniqueSRO:
+    "reborrow' SharedReadOnly deriv orig
+      ((Unique, {orig}) # tail)
+      ((SharedReadOnly, {deriv}) # (Unique, {orig}) # tail)" |
+  DerivSRWUnique:
+    "orig \<in> ts
+     \<Longrightarrow> reborrow' Unique deriv orig
+      ((SharedReadWrite, ts) # tail)
+      ((Unique, {deriv}) # (SharedReadWrite, ts) # tail)" |
+  DerivSRWSRW:
+    "orig \<in> ts
+     \<Longrightarrow> reborrow' SharedReadWrite deriv orig
+      ((SharedReadWrite, ts) # tail)
+      ((SharedReadWrite, insert deriv ts) # tail)" |
+  DerivSRWSRO:
+    "orig \<in> ts
+     \<Longrightarrow> reborrow' SharedReadOnly deriv orig
+      ((SharedReadWrite, ts) # tail)
+      ((SharedReadOnly, {deriv}) # (SharedReadWrite, ts) # tail)" |
+  DerivSROSRO:
+    "orig \<in> ts
+     \<Longrightarrow> reborrow' SharedReadOnly deriv orig
+      ((SharedReadOnly, ts) # tail)
+      ((SharedReadOnly, insert deriv ts) # tail)" |
+  DerivPop:
+    "\<lbrakk>reborrow' k deriv orig tail stack;
+      orig \<notin> snd entry\<rbrakk>
+    \<Longrightarrow> reborrow' k deriv orig (entry # tail) stack"
+
+lemma reborrow_equiv[intro]:
+  "reborrow' k deriv orig stack stack' \<Longrightarrow> reborrow_pop k deriv orig stack = stack'"
+proof (induction rule: reborrow'.induct)
+qed simp_all
+
 end
