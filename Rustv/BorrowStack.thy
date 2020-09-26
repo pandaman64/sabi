@@ -907,12 +907,51 @@ lemma reborrow_by_comp[simp, intro]:
 proof (induction rule: reborrow'.induct)
 qed simp_all
 
+lemma the_reborrow_by_comp[simp, intro]:
+  assumes "reborrow' k deriv orig stack (reborrow_comp k deriv orig stack)"
+  shows "(THE stack'. reborrow' k deriv orig stack stack') = reborrow_comp k deriv orig stack"
+  using assms reborrow_by_comp by blast
+
+lemma the_reborrow_by_comp'[simp, intro]:
+  assumes "reborrow' k deriv orig stack (reborrow_comp k deriv orig stack)"
+  shows "The (reborrow' k deriv orig stack) = reborrow_comp k deriv orig stack"
+  using assms the_reborrow_by_comp by simp
+
 lemma reborrow_unique:
   assumes
     "reborrow' k deriv orig stack stack'"
     "reborrow' k deriv orig stack stack''"
   shows "stack' = stack''"
   using assms(1) assms(2) reborrow_by_comp by blast
+
+lemma ex1_reborrow'_writable:
+  assumes
+    "wf_reborrow stack"
+    "writable orig stack"
+  shows "\<exists>!stack'. reborrow' k deriv orig stack stack'"
+proof -
+  obtain stack' where
+    *: "reborrow' k deriv orig stack stack'"
+    using assms ex_reborrow'_writable by blast
+  moreover have "\<forall>stack''. reborrow' k deriv orig stack stack'' \<longrightarrow> stack'' = stack'"
+    using reborrow_unique * by auto
+  ultimately show ?thesis by blast
+qed
+
+lemma ex1_reborrow'_readable:
+  assumes
+    "wf_reborrow stack"
+    "readable orig stack"
+    "k = SharedReadOnly"
+  shows "\<exists>!stack'. reborrow' k deriv orig stack stack'"
+proof -
+  obtain stack' where
+    *: "reborrow' k deriv orig stack stack'"
+    using assms ex_reborrow'_readable by blast
+  moreover have "\<forall>stack''. reborrow' k deriv orig stack stack'' \<longrightarrow> stack'' = stack'"
+    using reborrow_unique * by auto
+  ultimately show ?thesis by blast
+qed
 
 lemma reborrow_comp_pop:
   assumes "orig \<notin> snd entry"

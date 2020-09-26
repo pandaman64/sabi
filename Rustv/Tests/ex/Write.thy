@@ -52,7 +52,7 @@ lemma "\<Gamma> \<turnstile>\<^sub>t {s. writable (p s) s \<and> wf_heap s} deri
 
 definition reb_body :: "(deriv_env, 'p, rust_error) com" where
   "reb_body = Guard invalid_ref {s. writable (p s) s}
-    (Seq (Basic (\<lambda>s. pop_tags (p s) s))
+    (Seq (Basic id)
          (Basic (\<lambda>s.
            (let (p', s') = reborrow Unique (p s) s in
            s'\<lparr> x := p' \<rparr>))))"
@@ -64,7 +64,8 @@ lemma "\<Gamma> \<turnstile>\<^sub>t
   unfolding reb_body_def
   apply vcg
   apply (auto simp add: Let_def)
-  apply (rule writable_reborrow_comp_derived, simp_all)
-  using wf_tags_spec by auto
+  apply (rule writable_reborrow_derived)
+   apply (rule theI')
+  using BorrowStack.ex1_reborrow'_writable sorry
 
 end
