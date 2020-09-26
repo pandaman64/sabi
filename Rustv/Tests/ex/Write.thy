@@ -64,7 +64,7 @@ lemma "\<Gamma> \<turnstile>\<^sub>t
   unfolding reb_body_def
   apply vcg
   apply (auto simp add: Let_def)
-  apply (rule writable_reborrow_pop_derived, simp_all)
+  apply (rule writable_reborrow_comp_derived, simp_all)
   using wf_tags_spec by auto
 
 end

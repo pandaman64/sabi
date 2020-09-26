@@ -5,7 +5,7 @@ begin
 abbreviation "collect_tags_stack == BorrowStack.collect_tags"
 abbreviation "pop_tags_stack == BorrowStack.pop_tags"
 abbreviation "writable_stack == BorrowStack.writable"
-abbreviation "reborrow_pop_stack == BorrowStack.reborrow_pop"
+abbreviation "reborrow_comp_stack == BorrowStack.reborrow_comp"
 abbreviation "reborrow_stack == BorrowStack.reborrow"
 
 record globals_ram =
@@ -281,12 +281,12 @@ fun reborrow :: "ref_kind \<Rightarrow> tagged_ref \<Rightarrow> 'a globals_ram_
   "reborrow k r s =
     (let p = the_ptr (pointer r) in
     let t = new_tag s in
-    let tags = (tags s)[p := reborrow_pop_stack k t (tag r) ((tags s) ! p)] in
+    let tags = (tags s)[p := reborrow_comp_stack k t (tag r) ((tags s) ! p)] in
     (\<lparr> pointer = pointer r, tag = t \<rparr>,  s\<lparr> tags := tags, issued_tags := t # issued_tags s \<rparr>))"
 
-declare BorrowStack.reborrow_pop.simps [simp del]
+declare BorrowStack.reborrow_comp.simps [simp del]
 fun_cases reborrow_elims: "reborrow k r s = (r', s')"
-declare BorrowStack.reborrow_pop.simps [simp]
+declare BorrowStack.reborrow_comp.simps [simp]
 
 lemma collect_tags_stack_reborrow_subset:
   assumes
@@ -304,14 +304,14 @@ qed
 lemma collect_tags_reborrow_subset:
   "\<lbrakk>the_ptr (pointer r) < length (tags s); reborrow k r s = (r', s')\<rbrakk> \<Longrightarrow> collect_tags (tags s') \<subseteq> {new_tag s} \<union> collect_tags (tags s)"
   apply (erule reborrow_elims)
-  apply (simp add: Let_def del: reborrow_pop.simps)
-  using collect_tags_update_subset reborrow_pop_subset collect_tags_spec' nth_mem by blast
+  apply (simp add: Let_def del: reborrow_comp.simps)
+  using collect_tags_update_subset reborrow_comp_subset collect_tags_spec' nth_mem by blast
 
 lemma collect_tags_reborrow_subset':
   "\<lbrakk>the_ptr (pointer r) < length (tags s)\<rbrakk> 
   \<Longrightarrow> collect_tags (tags (snd (reborrow k r s))) \<subseteq> {new_tag s} \<union> collect_tags (tags s)"
-  apply (simp add: Let_def del: reborrow_pop.simps)
-  using collect_tags_update_subset reborrow_pop_subset collect_tags_spec' nth_mem by blast
+  apply (simp add: Let_def del: reborrow_comp.simps)
+  using collect_tags_update_subset reborrow_comp_subset collect_tags_spec' nth_mem by blast
 
 lemma reborrow_pointer: "reborrow k r s = (r', s') \<Longrightarrow> pointer r' = pointer r"
   apply (erule reborrow_elims)
@@ -320,7 +320,7 @@ lemma reborrow_pointer: "reborrow k r s = (r', s') \<Longrightarrow> pointer r' 
 lemma new_tag_collect:
   assumes
     "p < length ts"
-    "x \<in> collect_tags (ts[p := reborrow_pop_stack k t' t (ts ! p)])"
+    "x \<in> collect_tags (ts[p := reborrow_comp_stack k t' t (ts ! p)])"
       (is "x \<in> collect_tags (ts[p := ?stack])")
     "collect_tags ts \<subseteq> issued"
     "x \<notin> issued"
@@ -329,7 +329,7 @@ proof -
   have "x \<in> collect_tags_stack ?stack \<union> collect_tags ts"
     using assms collect_tags_update by blast
   then have "x \<in> {t'} \<union> collect_tags_stack (ts ! p) \<union> collect_tags ts"
-    using reborrow_pop_subset by blast
+    using reborrow_comp_subset by blast
   moreover have "collect_tags_stack (ts ! p) \<subseteq> collect_tags ts"
     using assms collect_tags_spec' nth_mem by blast
   ultimately have "x \<in> {t'} \<union> collect_tags ts" by auto
@@ -339,7 +339,7 @@ qed
 lemma reborrow_update_heap': "\<lbrakk>wf_heap s; writable r s\<rbrakk> \<Longrightarrow> wf_heap (snd (reborrow k r s))"
   apply (auto simp add: Let_def)
    apply (rule wf_tags_update, auto)
-    apply (rule wf_reborrow_reborrow_pop, auto)
+    apply (rule wf_reborrow_reborrow_comp, auto)
      apply (simp add: wf_tags_spec)
   using new_tag_notin_at apply fastforce
    apply (rule stack_finite_reborrow, auto)
@@ -352,8 +352,8 @@ lemma reborrow_update_heap: "\<lbrakk>wf_heap s; writable r s; reborrow k r s = 
 
 lemma reborrow_writable: "\<lbrakk>wf_heap s; writable r s; reborrow k r s = (r', s')\<rbrakk> \<Longrightarrow> writable r s'"
   apply (erule reborrow_elims)
-  apply (simp add: Let_def del: BorrowStack.reborrow_pop.simps)
-  apply (rule writable_reborrow_pop)
+  apply (simp add: Let_def del: BorrowStack.reborrow_comp.simps)
+  apply (rule writable_reborrow_comp)
      apply blast
     apply blast
   using wf_tags_spec nth_mem apply blast
@@ -367,8 +367,8 @@ lemma reborrow_writable_derived:
     "k = Unique \<or> k = SharedReadWrite"
   shows "writable r' s'"
   using assms(3) apply (rule reborrow_elims)
-  using assms apply (simp add: Let_def del: BorrowStack.reborrow_pop.simps)
-  apply (rule writable_reborrow_pop_derived[of "tag r" "tags s ! the_ptr (pointer r)" k])
+  using assms apply (simp add: Let_def del: BorrowStack.reborrow_comp.simps)
+  apply (rule writable_reborrow_comp_derived[of "tag r" "tags s ! the_ptr (pointer r)" k])
   using wf_tags_spec apply auto[3]
   using new_tag_notin_at by auto
 
