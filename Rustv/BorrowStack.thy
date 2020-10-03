@@ -1121,6 +1121,15 @@ using assms proof (induction)
   then show ?case using reborrow'_nonempty_src wf_reborrow_pop' by auto
 qed (auto simp add: ReborrowSRWSRW ReborrowSROSRO)
 
+lemma wf_reborrow_reborrow'_the:
+  assumes
+    "writable orig stack"
+    "wf_reborrow stack"
+    "deriv \<notin> collect_tags stack"
+  shows "wf_reborrow (THE stack'. reborrow' k deriv orig stack stack')"
+  using assms wf_reborrow_reborrow'
+  by (metis reborrow_by_comp the_reborrow'_writable the_reborrow_by_comp the_reborrow_by_comp')
+
 lemma collect_tags_reborrow_subset:
   assumes "reborrow k t stack = stack'"
   shows "collect_tags stack' \<subseteq> {t} \<union> collect_tags stack"
@@ -1390,6 +1399,15 @@ using assms proof (induction)
   qed
 qed auto
 
+lemma writable_reborrow_the:
+  assumes
+    "wf_reborrow stack"
+    "writable orig stack"
+    "deriv \<notin> collect_tags stack"
+  shows "writable orig (THE stack'. reborrow' k deriv orig stack stack')"
+  using writable_reborrow
+  by (metis assms ex_reborrow'_writable reborrow_by_comp the_reborrow_by_comp')
+
 lemma writable_reborrow_derived:
   assumes
     "reborrow' k deriv orig stack stack'"
@@ -1408,5 +1426,15 @@ using assms proof (induction)
     show "k = Unique \<or> k = SharedReadWrite" using DerivPop.prems by simp
   qed
 qed auto
+
+lemma writable_reborrow_derived_the:
+  assumes
+    "writable orig stack"
+    "wf_reborrow stack"
+    "k = Unique \<or> k = SharedReadWrite"
+  shows "writable deriv (THE stack'. reborrow' k deriv orig stack stack')"
+  using writable_reborrow_derived
+  by (metis assms ex_reborrow'_writable reborrow_by_comp the_reborrow_by_comp')
+
 
 end
