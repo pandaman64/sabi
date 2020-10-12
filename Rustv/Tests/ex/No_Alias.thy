@@ -1,5 +1,5 @@
 theory No_Alias
-  imports "Rust-Verification.Rustv"
+  imports Simpl.Vcg "Rust-Verification.Rustv"
 begin
 
 record no_alias_env = globals_ram +

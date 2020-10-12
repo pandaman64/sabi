@@ -1,5 +1,5 @@
 theory Rustv
-  imports Simpl.Vcg Defs BorrowStack
+  imports Defs BorrowStack
 begin
 
 abbreviation "collect_tags_stack == BorrowStack.collect_tags"

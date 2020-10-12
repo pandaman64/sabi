@@ -1,5 +1,5 @@
 theory SharedWrite
-  imports "Rust-Verification.Rustv"
+  imports Simpl.Vcg "Rust-Verification.Rustv"
 begin
 
 text \<open>In this section, we explore how we can express shared read write references (raw pointers)

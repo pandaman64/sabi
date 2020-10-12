@@ -1,5 +1,5 @@
 theory Write
-  imports "Rust-Verification.Rustv"
+  imports Simpl.Vcg "Rust-Verification.Rustv"
 begin
 
 record deriv_env = globals_ram +
