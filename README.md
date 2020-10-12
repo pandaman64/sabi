@@ -17,5 +17,10 @@ $ isabelle build -d ./Simpl -D . -v
 
 ### Launching a jEdit session
 ```
-$ isabelle jedit -d /path/to/Simpl -d .
+$ isabelle jedit -d ./Simpl -d . Rustv/Rustv.thy
+```
+
+The `-l` option seems to have Isabelle cache the Simpl heap:
+```
+$ isabelle jedit -l Simpl -d Simpl -d . Rustv/Rustv.thy
 ```
