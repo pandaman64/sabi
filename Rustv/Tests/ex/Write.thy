@@ -8,8 +8,8 @@ record deriv_env = globals_ram +
 
 definition deriv_body :: "(deriv_env, 'p, rust_error) com" where
   "deriv_body = Guard invalid_ref {s. writable (p s) s}
-    (Seq (Basic (\<lambda>s. pop_tags (p s) s))
-         (Basic (\<lambda>s. (memwrite (p s) (int_val 101) s))))"
+    (Basic (\<lambda>s. pop_tags (p s) s);;
+    Basic (\<lambda>s. (memwrite (p s) (int_val 101) s)))"
 
 lemma partial: "\<Gamma> \<turnstile> {s. writable (p s) s} deriv_body {s. memory s ! (the_ptr (pointer (p s))) = int_val 101}"
   unfolding deriv_body_def

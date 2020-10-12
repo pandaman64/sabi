@@ -32,31 +32,25 @@ record shared_env = globals_ram +
   ptr2 :: tagged_ref
 
 definition shared_body :: "(shared_env, 'p, rust_error) com" where
-  "shared_body =
-    (Seq (Basic (\<lambda>s. (let (r, s') = heap_new (int_val 100) s in
-                     s'\<lparr> root := r \<rparr>)))
+  "shared_body ==
+    Basic (\<lambda>s. (let (r, s') = heap_new (int_val 100) s in s'\<lparr> root := r \<rparr>));;
 
-    (Seq (Guard invalid_ref {s. writable (root s) s}
-           (Seq (Basic (\<lambda>s. pop_tags (root s) s))
-                (Basic (\<lambda>s.
-                  (let (r, s') = reborrow SharedReadWrite (root s) s in
-                  s'\<lparr> ptr1 := r \<rparr>)))))
-    (Seq (Guard invalid_ref {s. writable (ptr1 s) s}
-           (Seq (Basic (\<lambda>s. pop_tags (ptr1 s) s))
-                (Basic (\<lambda>s.
-                  (let (r, s') = reborrow SharedReadWrite (ptr1 s) s in
-                  s'\<lparr> ptr2 := r \<rparr>)))))
+    Guard invalid_ref {s. writable (root s) s}
+      (Basic (\<lambda>s. pop_tags (root s) s);;
+      Basic (\<lambda>s. (let (r, s') = reborrow SharedReadWrite (root s) s in s'\<lparr> ptr1 := r \<rparr>)));;
+    Guard invalid_ref {s. writable (ptr1 s) s}
+      (Basic (\<lambda>s. pop_tags (ptr1 s) s);;
+      Basic (\<lambda>s. (let (r, s') = reborrow SharedReadWrite (ptr1 s) s in s'\<lparr> ptr2 := r \<rparr>)));;
 
-    (Seq (Guard invalid_ref {s. writable (ptr1 s) s}
-           (Seq (Basic (\<lambda>s. pop_tags (ptr1 s) s))
-                (Basic (\<lambda>s. memwrite (ptr1 s) (int_val 200) s))))
-    (Seq (Guard invalid_ref {s. writable (ptr2 s) s}
-           (Seq (Basic (\<lambda>s. pop_tags (ptr2 s) s))
-                (Basic (\<lambda>s. memwrite (ptr2 s) (int_val 300) s))))
-         (Guard invalid_ref {s. writable (ptr1 s) s}
-           (Seq (Basic (\<lambda>s. pop_tags (ptr1 s) s))
-                (Basic (\<lambda>s. memwrite (ptr1 s) (int_val 200) s))))
-    )))))"
+    Guard invalid_ref {s. writable (ptr1 s) s}
+      (Basic (\<lambda>s. pop_tags (ptr1 s) s);;
+      Basic (\<lambda>s. memwrite (ptr1 s) (int_val 200) s));;
+    Guard invalid_ref {s. writable (ptr2 s) s}
+      (Basic (\<lambda>s. pop_tags (ptr2 s) s);;
+      Basic (\<lambda>s. memwrite (ptr2 s) (int_val 300) s));;
+    Guard invalid_ref {s. writable (ptr1 s) s}
+      (Basic (\<lambda>s. pop_tags (ptr1 s) s);;
+      Basic (\<lambda>s. memwrite (ptr1 s) (int_val 200) s))"
 
 text \<open>Proof of safety (the program doesn't stuck due to alias semantics violation)\<close>
 

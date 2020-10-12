@@ -8,28 +8,22 @@ record no_alias_env = globals_ram +
   ref2 :: tagged_ref
 
 definition no_alias_body :: "(no_alias_env, 'p, rust_error) com" where
-  "no_alias_body =
-    (Seq (Basic (\<lambda>s. (let (r, s') = heap_new (int_val 100) s in
-                     s'\<lparr> x := r \<rparr>)))
+  "no_alias_body ==
+    Basic (\<lambda>s. (let (r, s') = heap_new (int_val 100) s in s'\<lparr> x := r \<rparr>));;
 
-    (Seq (Guard invalid_ref {s. writable (x s) s}
-           (Seq (Basic (\<lambda>s. pop_tags (x s) s))
-                (Basic (\<lambda>s.
-                  (let (r, s') = reborrow Unique (x s) s in
-                  s'\<lparr> ref1 := r \<rparr>)))))
-    (Seq (Guard invalid_ref {s. writable (ref1 s) s}
-           (Seq (Basic (\<lambda>s. pop_tags (ref1 s) s))
-                (Basic (\<lambda>s. memwrite (ref1 s) (int_val 200) s))))
+    Guard invalid_ref {s. writable (x s) s}
+      (Basic (\<lambda>s. pop_tags (x s) s);;
+      Basic (\<lambda>s. (let (r, s') = reborrow Unique (x s) s in s'\<lparr> ref1 := r \<rparr>)));;
+    Guard invalid_ref {s. writable (ref1 s) s}
+      (Basic (\<lambda>s. pop_tags (ref1 s) s);;
+      Basic (\<lambda>s. memwrite (ref1 s) (int_val 200) s));;
 
-    (Seq (Guard invalid_ref {s. writable (x s) s}
-           (Seq (Basic (\<lambda>s. pop_tags (x s) s))
-                (Basic (\<lambda>s.
-                  (let (r, s') = reborrow Unique (x s) s in
-                  s'\<lparr> ref2 := r \<rparr>)))))
-         (Guard invalid_ref {s. writable (ref2 s) s}
-           (Seq (Basic (\<lambda>s. pop_tags (ref2 s) s))
-                (Basic (\<lambda>s. memwrite (ref2 s) (int_val 300) s))))
-    ))))"
+    Guard invalid_ref {s. writable (x s) s}
+      (Basic (\<lambda>s. pop_tags (x s) s);;
+      Basic (\<lambda>s. (let (r, s') = reborrow Unique (x s) s in s'\<lparr> ref2 := r \<rparr>)));;
+   Guard invalid_ref {s. writable (ref2 s) s}
+      (Basic (\<lambda>s. pop_tags (ref2 s) s);;
+      Basic (\<lambda>s. memwrite (ref2 s) (int_val 300) s))"
 
 (* Termination *)
 lemma "\<Gamma> \<turnstile>\<^sub>t {s. wf_heap s} no_alias_body {s. True}"
