@@ -637,6 +637,45 @@ fun writable :: "tag \<Rightarrow> (ref_kind * tag set) stack \<Rightarrow> bool
   "writable t ((k, ts) # stack) \<longleftrightarrow>
     (if t \<in> ts then k = Unique \<or> k = SharedReadWrite else writable t stack)"
 
+fun permission_is :: "ref_kind \<Rightarrow> tag \<Rightarrow> (ref_kind * tag set) stack \<Rightarrow> bool" where
+  "permission_is k t [] \<longleftrightarrow> False" |
+  "permission_is k t ((k', ts) # stack) \<longleftrightarrow>
+    (if t \<in> ts then k = k' else permission_is k t stack)"
+
+lemma permission_is_imp_readable[intro]:
+  assumes "permission_is k t stack"
+  shows "readable t stack"
+using assms proof (induction stack)
+  case Nil
+  then show ?case by simp
+next
+  case (Cons entry stack)
+  then show ?case
+    by (metis list.sel(3) list.simps(3) permission_is.simps(2) readable.elims(3))
+qed
+
+lemma permission_is_imp_writable[intro]:
+  assumes
+    "permission_is k t stack"
+    "k = Unique \<or> k = SharedReadWrite"
+  shows "writable t stack"
+using assms proof (induction stack)
+  case Nil
+  then show ?case by simp
+next
+  case (Cons entry stack)
+  then show ?case
+  proof (cases "t \<in> snd entry")
+    case True
+    then show ?thesis
+      by (metis Cons list.sel(3) list.simps(3) permission_is.simps(2) writable.elims(3))
+  next
+    case False
+    then show ?thesis
+      by (metis Cons permission_is.simps(2) prod.collapse writable.simps(2))
+  qed
+qed
+
 lemma writable_in_collect_tags:
   assumes "writable t stack"
   shows "t \<in> collect_tags stack"

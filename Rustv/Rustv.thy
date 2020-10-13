@@ -4,6 +4,8 @@ begin
 
 abbreviation "collect_tags_stack == BorrowStack.collect_tags"
 abbreviation "pop_tags_stack == BorrowStack.pop_tags"
+abbreviation "permission_is_stack == BorrowStack.permission_is"
+abbreviation "readable_stack == BorrowStack.readable"
 abbreviation "writable_stack == BorrowStack.writable"
 abbreviation "reborrow_comp_stack == BorrowStack.reborrow_comp"
 abbreviation "reborrow_stack == BorrowStack.reborrow"
@@ -176,8 +178,12 @@ proof -
   ultimately show ?thesis by simp
 qed
 
-fun memwrite
-  :: "tagged_ref \<Rightarrow> val \<Rightarrow> 'a globals_ram_scheme \<Rightarrow> 'a globals_ram_scheme"
+fun memread :: "tagged_ref \<Rightarrow> 'a globals_ram_scheme \<Rightarrow> val" where
+  "memread p s =
+    (let memory = memory s in
+    memory ! (the_ptr (pointer p)))"
+
+fun memwrite :: "tagged_ref \<Rightarrow> val \<Rightarrow> 'a globals_ram_scheme \<Rightarrow> 'a globals_ram_scheme"
   where
   "memwrite p v s =
     (let memory = memory s in
@@ -241,6 +247,18 @@ proof -
   then have "t \<notin> collect_tags (tags s)" using assms by auto
   thus ?thesis using assms using collect_tags_spec' nth_mem by blast
 qed
+
+fun permission_is :: "ref_kind \<Rightarrow> tagged_ref \<Rightarrow> 'a globals_ram_scheme \<Rightarrow> bool" where
+  "permission_is k r s =
+    (let p = the_ptr (pointer r) in
+    let t = tag r in
+    p < length (memory s) \<and> permission_is_stack k t (tags s ! p))"
+
+fun readable :: "tagged_ref \<Rightarrow> 'a globals_ram_scheme \<Rightarrow> bool" where
+  "readable r s =
+    (let p = the_ptr (pointer r) in
+    let t = tag r in
+    p < length (memory s) \<and> readable_stack t (tags s ! p))"
 
 fun writable :: "tagged_ref \<Rightarrow> 'a globals_ram_scheme \<Rightarrow> bool" where
   "writable r s =

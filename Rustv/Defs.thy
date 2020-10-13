@@ -6,7 +6,7 @@ datatype rust_error = invalid_ref
 
 datatype pointer = ptr_val nat
 datatype tag = tag_val nat
-datatype val = int_val int
+datatype val = uninit | int_val int
 record tagged_ref =
   pointer :: pointer
   tag :: tag
