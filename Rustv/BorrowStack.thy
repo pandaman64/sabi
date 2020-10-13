@@ -1141,4 +1141,9 @@ lemma writable_reborrow_comp_derived:
 using assms proof (cases rule: decomp_reborrow_comp_writable_elims)
 qed auto
 
+lemma writable_imp_in_tags[intro]:
+  assumes "writable t stack"
+  shows "\<exists>entry \<in>set stack. t \<in> snd entry"
+  using assms writable_in_collect_tags by auto
+
 end

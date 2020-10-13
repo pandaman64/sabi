@@ -1,20 +1,9 @@
 theory Cell
-  imports Simpl.Vcg "Rust-Verification.Rustv"
+  imports Simpl.Vcg "Rust-Verification.Rust_Semantics"
 begin
 
 text \<open>Formalization of Cell<T>. In this theory, we interpret &Cell<T> as
 a SharedReadWrite pointer to the location.\<close>
-
-(* In this theory, we are translating Rust assignments of the form of
- * *dst = *src;
- * as follows (Note that we are ignoring Drop semantics):
- *)
-abbreviation copy_betw_places where
-  "copy_betw_places src dst ==
-     Guard invalid_ref {s. writable (dst s) s \<and> readable (src s) s}
-      (Basic (\<lambda>s. pop_tags (dst s) s);;
-      Basic (\<lambda>s. pop_tags (src s) s);;
-      Basic (\<lambda>s. (let v = memread (src s) s in memwrite (dst s) v s)))"
 
 record cell_env = globals_ram +
   self :: tagged_ref
@@ -56,18 +45,22 @@ according to \<^url>\<open>https://doc.rust-lang.org/src/core/cell.rs.html#364-3
 \<^url>\<open>https://doc.rust-lang.org/src/core/ptr/mod.rs.html#373-388\<close>.
 \<close>
 
-(* We are omitting early return as we don't support it yet :( *)
 definition cell_swap_body :: "(cell_swap_env, 'p, rust_error) com" where
   "cell_swap_body ==
-    \<comment> \<open>Initializing tmp with uninit\<close>
-    Basic (\<lambda>s. (let (r, s') = heap_new uninit s in s'\<lparr> tmp := r \<rparr>));;
+    IFR {s. ptr_eq (self s) (other s)}
+    THEN
+      Skip
+    ELSE
+      \<comment> \<open>Initializing tmp with uninit\<close>
+      Basic (\<lambda>s. (let (r, s') = heap_new uninit s in s'\<lparr> tmp := r \<rparr>));;
 
-    \<comment> \<open>*tmp = *self\<close>
-    copy_betw_places self tmp;;
-    \<comment> \<open>*self = *other\<close>
-    copy_betw_places other self;;
-    \<comment> \<open>*self = *tmp\<close>
-    copy_betw_places tmp self
+      \<comment> \<open>*tmp = *self\<close>
+      copy_betw_places self tmp;;
+      \<comment> \<open>*self = *other\<close>
+      copy_betw_places other self;;
+      \<comment> \<open>*self = *tmp\<close>
+      copy_betw_places tmp other
+    FI
 "
 
 \<comment> \<open>A proof that shows self and val have the same value after Cell::set.\<close>
@@ -95,7 +88,8 @@ lemma cell_get_value: "\<Gamma> \<turnstile>\<^sub>t
   using permission_is_imp_readable apply simp
   by (metis nth_list_update_eq nth_list_update_neq)
 
-lemma cell_swap_value: "\<forall>x y. \<Gamma> \<turnstile>\<^sub>t
+\<comment> \<open>A proof that shows Cell::swap(self, other) swaps the value in the memory.\<close>
+lemma cell_swap_value: "\<Gamma> \<turnstile>\<^sub>t
   {s. wf_heap s
   \<and> permission_is SharedReadWrite (self s) s
   \<and> permission_is SharedReadWrite (other s) s
@@ -105,6 +99,8 @@ lemma cell_swap_value: "\<forall>x y. \<Gamma> \<turnstile>\<^sub>t
   {s. memread (self s) s = y \<and> memread (other s) s = x}"
   unfolding cell_swap_body_def
   apply vcg
-  oops
+  apply (auto simp add: Let_def nth_append)
+  using permission_is_imp_writable writable_pop_tags by auto
+
 
 end
