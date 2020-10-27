@@ -1,5 +1,5 @@
 theory Write
-  imports Simpl.Vcg "Rust-Verification.Rustv"
+  imports Simpl.Vcg "Rust-Verification.Rust_Semantics"
 begin
 
 record deriv_env = globals_ram +
@@ -7,9 +7,7 @@ record deriv_env = globals_ram +
   x :: tagged_ref
 
 definition deriv_body :: "(deriv_env, 'p, rust_error) com" where
-  "deriv_body = Guard invalid_ref {s. writable (p s) s}
-    (Basic (\<lambda>s. pop_tags (p s) s);;
-    Basic (\<lambda>s. (memwrite (p s) (int_val 101) s)))"
+  "deriv_body = write_imm p (int_val 101)"
 
 lemma partial: "\<Gamma> \<turnstile> {s. writable (p s) s} deriv_body {s. memory s ! (the_ptr (pointer (p s))) = int_val 101}"
   unfolding deriv_body_def
@@ -51,11 +49,7 @@ lemma "\<Gamma> \<turnstile>\<^sub>t {s. writable (p s) s \<and> wf_heap s} deri
   using writable_pop_tags by auto
 
 definition reb_body :: "(deriv_env, 'p, rust_error) com" where
-  "reb_body = Guard invalid_ref {s. writable (p s) s}
-    (Seq (Basic (\<lambda>s. pop_tags (p s) s))
-         (Basic (\<lambda>s.
-           (let (p', s') = reborrow Unique (p s) s in
-           s'\<lparr> x := p' \<rparr>))))"
+  "reb_body = reborrow_stmt Unique p (\<lambda>s r. s\<lparr> x := r \<rparr>)"
 
 lemma "\<Gamma> \<turnstile>\<^sub>t
   {s. writable (p s) s \<and> wf_heap s}

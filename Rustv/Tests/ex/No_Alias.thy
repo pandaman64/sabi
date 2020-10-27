@@ -1,5 +1,5 @@
 theory No_Alias
-  imports Simpl.Vcg "Rust-Verification.Rustv"
+  imports Simpl.Vcg "Rust-Verification.Rust_Semantics"
 begin
 
 record no_alias_env = globals_ram +
@@ -11,19 +11,11 @@ definition no_alias_body :: "(no_alias_env, 'p, rust_error) com" where
   "no_alias_body ==
     Basic (\<lambda>s. (let (r, s') = heap_new (int_val 100) s in s'\<lparr> x := r \<rparr>));;
 
-    Guard invalid_ref {s. writable (x s) s}
-      (Basic (\<lambda>s. pop_tags (x s) s);;
-      Basic (\<lambda>s. (let (r, s') = reborrow Unique (x s) s in s'\<lparr> ref1 := r \<rparr>)));;
-    Guard invalid_ref {s. writable (ref1 s) s}
-      (Basic (\<lambda>s. pop_tags (ref1 s) s);;
-      Basic (\<lambda>s. memwrite (ref1 s) (int_val 200) s));;
+    reborrow_stmt Unique x (\<lambda>s r. s\<lparr> ref1 := r \<rparr>);;
+    write_imm ref1 (int_val 200);;
 
-    Guard invalid_ref {s. writable (x s) s}
-      (Basic (\<lambda>s. pop_tags (x s) s);;
-      Basic (\<lambda>s. (let (r, s') = reborrow Unique (x s) s in s'\<lparr> ref2 := r \<rparr>)));;
-   Guard invalid_ref {s. writable (ref2 s) s}
-      (Basic (\<lambda>s. pop_tags (ref2 s) s);;
-      Basic (\<lambda>s. memwrite (ref2 s) (int_val 300) s))"
+    reborrow_stmt Unique x (\<lambda>s r. s\<lparr> ref2 := r \<rparr>);;
+    write_imm ref2 (int_val 300)"
 
 (* Termination *)
 lemma "\<Gamma> \<turnstile>\<^sub>t {s. wf_heap s} no_alias_body {s. True}"
