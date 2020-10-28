@@ -6,10 +6,14 @@ datatype rust_error = invalid_ref
 
 datatype pointer = ptr_val nat
 datatype tag = tag_val nat
-datatype val = uninit | int_val int
 record tagged_ref =
   pointer :: pointer
   tag :: tag
+datatype val = uninit | int_val int | ref tagged_ref
+
+fun the_ref where
+  "the_ref (ref r) = r" |
+  "the_ref _ = undefined"
 
 fun the_ptr :: "pointer \<Rightarrow> nat" where
   "the_ptr (ptr_val p) = p"

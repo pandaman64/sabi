@@ -225,6 +225,9 @@ qed
 lemma suc_max_list_gt: "\<forall>x \<in> set xs. Suc (max_list xs) > x"
   using max_list_ge by fastforce
 
+lemma max_simp[simp]: "max (Suc n) n = Suc n"
+  by simp
+
 fun new_tag :: "'a globals_ram_scheme \<Rightarrow> tag" where
   "new_tag s = tag_val (Suc (max_list (map the_tag (issued_tags s))))"
 
