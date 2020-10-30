@@ -32,7 +32,7 @@ lemma "\<Gamma> \<turnstile>\<^sub>t {s. wf_heap s} no_alias_body {s. True}"
   done
 
 (* Spec of the program *)
-(*
+
 lemma "\<Gamma> \<turnstile>\<^sub>t
   {s. wf_heap s}
   no_alias_body
@@ -42,8 +42,8 @@ lemma "\<Gamma> \<turnstile>\<^sub>t
   unfolding no_alias_body_def
   apply vcg
   (* This auto takes too long because of the term size *)
-  apply (auto simp: Let_def)
+  apply (simp add: Let_def)
   oops
-*)
+
 
 end
