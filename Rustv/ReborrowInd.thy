@@ -337,4 +337,154 @@ lemma writable_reborrow_derived_the:
   using writable_reborrow_derived
   by (metis assms ex_reborrow'_writable reborrow_by_comp the_reborrow_by_comp')
 
+lemma reborrow_comp_by_ind:
+  assumes
+    "wf_reborrow stack"
+    "reborrow_comp k deriv orig stack = stack'"
+    "stack' \<noteq> []"
+  shows
+    "reborrow' k deriv orig stack stack'"
+using assms proof (induction rule: wf_reborrow_induct')
+  case (Root t)
+  consider "orig \<noteq> t" | "orig = t" by auto
+  then show ?case
+  proof (cases)
+    case 1
+    then show ?thesis using Root by simp
+  next
+    case 2
+    then show ?thesis using Root reborrow_by_comp the_reborrow'_writable by fastforce
+  qed
+next
+  case (UniqueUnique t t' tail)
+  consider "t' \<noteq> orig" | "t' = orig" by auto
+  then show ?case
+  proof (cases)
+    case 1
+    then have "reborrow_comp k deriv orig ((Unique, {t}) # tail) = stack'"
+      using UniqueUnique.prems(1) by auto
+    then show ?thesis using UniqueUnique \<open>t' \<noteq> orig\<close> reborrow'.intros(8) by auto
+  next
+    case 2
+    then show ?thesis
+    proof (cases k)
+      case Unique
+      then show ?thesis using 2 UniqueUnique DerivUniqueUnique by auto
+    next
+      case SharedReadWrite
+      then show ?thesis using 2 UniqueUnique DerivUniqueSRW by auto
+    next
+      case SharedReadOnly
+      then show ?thesis using 2 UniqueUnique DerivUniqueSRO by auto
+    qed
+  qed
+next
+  case (UniqueSRW t ts' tail)
+  consider "orig \<notin> ts'" | "orig \<in> ts'" by auto
+  then show ?case
+  proof (cases)
+    case 1
+    then have "reborrow_comp k deriv orig ((Unique, {t}) # tail) = stack'"
+      using UniqueSRW.prems(1) by auto
+    then show ?thesis using UniqueSRW \<open>orig \<notin> ts'\<close> reborrow'.intros(8) by auto
+  next
+    case 2
+    then show ?thesis
+    proof (cases k)
+      case Unique
+      then show ?thesis using 2 UniqueSRW DerivSRWUnique by auto
+    next
+      case SharedReadWrite
+      then show ?thesis using 2 UniqueSRW DerivSRWSRW by auto
+    next
+      case SharedReadOnly
+      then show ?thesis using 2 UniqueSRW DerivSRWSRO by auto
+    qed
+  qed
+next
+  case (UniqueSRO t ts' tail)
+  consider "orig \<notin> ts'" | "orig \<in> ts'" by auto
+  then show ?case
+  proof (cases)
+    case 1
+    then have "reborrow_comp k deriv orig ((Unique, {t}) # tail) = stack'"
+      using UniqueSRO.prems(1) by auto
+    then show ?thesis using UniqueSRO \<open>orig \<notin> ts'\<close> reborrow'.intros(8) by auto
+  next
+    case 2
+    then show ?thesis
+    proof (cases k)
+      case Unique
+      then show ?thesis using 2 UniqueSRO by auto
+    next
+      case SharedReadWrite
+      then show ?thesis using 2 UniqueSRO by auto
+    next
+      case SharedReadOnly
+      then show ?thesis using 2 UniqueSRO DerivSROSRO by auto
+    qed
+  qed
+next
+  case (SRWUnique ts t' tail)
+  consider "t' \<noteq> orig" | "t' = orig" by auto
+  then show ?case
+  proof (cases)
+    case 1
+    then have "reborrow_comp k deriv orig ((SharedReadWrite, ts) # tail) = stack'"
+      using SRWUnique.prems(1) by auto
+    then show ?thesis using SRWUnique \<open>t' \<noteq> orig\<close> reborrow'.intros(8) by auto
+  next
+    case 2
+    then show ?thesis
+    proof (cases k)
+      case Unique
+      then show ?thesis using 2 SRWUnique DerivUniqueUnique by auto
+    next
+      case SharedReadWrite
+      then show ?thesis using 2 SRWUnique DerivUniqueSRW by auto
+    next
+      case SharedReadOnly
+      then show ?thesis using 2 SRWUnique DerivUniqueSRO by auto
+    qed
+  qed
+next
+  case (SRWSRO ts ts' tail)
+  consider "orig \<notin> ts'" | "orig \<in> ts'" by auto
+  then show ?case
+  proof (cases)
+    case 1
+    then have "reborrow_comp k deriv orig ((SharedReadWrite, ts) # tail) = stack'"
+      using SRWSRO.prems(1) by auto
+    then show ?thesis using SRWSRO \<open>orig \<notin> ts'\<close> reborrow'.intros(8) by auto
+  next
+    case 2
+    then show ?thesis
+    proof (cases k)
+      case Unique
+      then show ?thesis using 2 SRWSRO by auto
+    next
+      case SharedReadWrite
+      then show ?thesis using 2 SRWSRO by auto
+    next
+      case SharedReadOnly
+      then show ?thesis using 2 SRWSRO DerivSROSRO by auto
+    qed
+  qed
+qed
+
+lemma wf_reborrow_pop''[
+  consumes 1,
+  case_names Root Reborrow
+]:
+  assumes
+    "wf_reborrow stack"
+  obtains
+    t where
+    "stack = [(Unique, {t})]"
+  | entry and tail where
+    "stack = entry # tail" and
+    "wf_reborrow tail"
+  by (metis assms last.simps neq_Nil_conv wf_reborrow_pop'
+      wf_reborrow_root wf_reborrow_structure_elims(1))
+
 end
