@@ -33,6 +33,7 @@ lemma "\<Gamma> \<turnstile>\<^sub>t {s. wf_heap s} no_alias_body {s. True}"
 
 (* Spec of the program *)
 
+(*
 lemma "\<Gamma> \<turnstile>\<^sub>t
   {s. wf_heap s}
   no_alias_body
@@ -44,6 +45,6 @@ lemma "\<Gamma> \<turnstile>\<^sub>t
   (* This auto takes too long because of the term size *)
   apply (simp add: Let_def)
   oops
-
+*)
 
 end
