@@ -3,7 +3,8 @@ theory ReborrowInd
 begin
 
 inductive reborrow'
-  :: "ref_kind \<Rightarrow> tag \<Rightarrow> tag \<Rightarrow> (ref_kind * tag set) stack \<Rightarrow> (ref_kind * tag set) stack \<Rightarrow> bool" where
+  :: "ref_kind \<Rightarrow> tag \<Rightarrow> tag \<Rightarrow> (ref_kind * tag set) stack \<Rightarrow> (ref_kind * tag set) stack \<Rightarrow> bool"
+where
   DerivUniqueUnique:
     "reborrow' Unique deriv orig
       ((Unique, {orig}) # tail)
@@ -279,7 +280,6 @@ lemma reborrow'_subset:
   shows "collect_tags stack' \<subseteq> {deriv} \<union> collect_tags stack"
 using assms proof (induction, auto)
 qed
-
 
 lemma writable_reborrow:
   assumes

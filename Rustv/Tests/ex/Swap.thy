@@ -7,7 +7,9 @@ record 'a simple_swap_env =
   y :: 'a
   tmp :: 'a
 
-definition simple_swap_body where
+definition simple_swap_body
+ :: "('a simple_swap_env, 'c, 'd) com"
+where
   "simple_swap_body ==
     Basic (\<lambda>s. s\<lparr> tmp := x s \<rparr>);;
     Basic (\<lambda>s. s\<lparr> x := y s \<rparr>);;

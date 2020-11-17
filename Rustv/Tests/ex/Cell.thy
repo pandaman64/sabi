@@ -102,5 +102,4 @@ lemma cell_swap_value: "\<Gamma> \<turnstile>\<^sub>t
   apply (auto simp add: Let_def nth_append)
   using permission_is_imp_writable writable_pop_tags by auto
 
-
 end
