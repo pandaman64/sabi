@@ -35,7 +35,18 @@ definition rustv_swap_body where
     copy_betw_places y x;;
     copy_betw_places tmp y"
 
-lemma rustv_swap_values: "\<Gamma> \<turnstile>\<^sub>t
+lemma rustv_swap_safety: "\<Gamma> \<turnstile>\<^sub>t
+  {s. wf_heap s
+  \<and> writable (x s) s \<and> writable (y s) s
+  \<and> \<not>(ptr_eq (x s) (y s))}
+  rustv_swap_body
+  {s. True}"
+  unfolding rustv_swap_body_def
+  apply vcg
+  apply (auto simp add: Let_def nth_append)
+  using writable_pop_tags by auto
+
+lemma rustv_swap_correctness: "\<Gamma> \<turnstile>\<^sub>t
   {s. wf_heap s
   \<and> writable (x s) s \<and> writable (y s) s
   \<and> \<not>(ptr_eq (x s) (y s))

@@ -1,5 +1,5 @@
 session "Rust-Verification" in "Rustv" = Simpl +
-  options [document = false, document_output = "output", document_variants="document=/proof"]
+  options [document = "pdf", document_output = "output", document_variants="document=/proof", quick_and_dirty]
   sessions
     "Simpl"
   theories [show_question_marks = false]
@@ -13,7 +13,7 @@ session "Rust-Verification" in "Rustv" = Simpl +
   *)
 
 session "Rust-Verification-Tests" in "Rustv/Tests"  = "Rust-Verification" +
-  options [document = false, document_output = "output", document_variants="document=/proof"]
+  options [document = false, document_output = "output", document_variants="document=/proof", quick_and_dirty]
   directories
     ex
   theories [show_question_marks = false]

@@ -27,6 +27,15 @@ lemma "\<Gamma> \<turnstile>\<^sub>t {s. writable (p s) s} deriv_body {s. memory
   apply (simp add: Let_def)
   by auto
 
+lemma "\<Gamma> \<turnstile>\<^sub>t {s. writable (p s) s} deriv_body {s. True}"
+  unfolding deriv_body_def
+  by vcg
+
+lemma "\<Gamma> \<turnstile>\<^sub>t {s. writable (p s) s} deriv_body {s. memory s ! (the_ptr (pointer (p s))) = int_val 101}"
+  unfolding deriv_body_def
+  apply vcg
+  by (auto simp add: Let_def)
+
 lemma "\<forall>\<sigma>. \<Gamma> \<turnstile>\<^sub>t
   {s. s = \<sigma> \<and> writable (p s) s}
   deriv_body
@@ -50,6 +59,13 @@ lemma "\<Gamma> \<turnstile>\<^sub>t {s. writable (p s) s \<and> wf_heap s} deri
 
 definition reb_body :: "(deriv_env, 'p, rust_error) com" where
   "reb_body = reborrow_stmt Unique p (\<lambda>s r. s\<lparr> x := r \<rparr>)"
+
+lemma "\<Gamma> \<turnstile>\<^sub>t
+  {s. writable (p s) s \<and> wf_heap s}
+  reb_body
+  {s. True}"
+  unfolding reb_body_def
+  by vcg
 
 lemma "\<Gamma> \<turnstile>\<^sub>t
   {s. writable (p s) s \<and> wf_heap s}

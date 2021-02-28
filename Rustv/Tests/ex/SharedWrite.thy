@@ -16,7 +16,7 @@ fn main() {
   unsafe {
     *ptr1 = 200;
     *ptr2 = 300;
-    *ptr1 = 200;
+    *ptr1 = 400;
   }
 }
 
@@ -47,11 +47,22 @@ text \<open>Proof of safety (the program doesn't stuck due to alias semantics vi
 lemma "\<Gamma> \<turnstile>\<^sub>t {s. wf_heap s} shared_body {s. True}"
   unfolding shared_body_def
   apply vcg
-  by (auto simp add: Let_def wf_tags_spec)
+  by (auto simp add: Let_def)
 
 lemma "\<Gamma> \<turnstile>\<^sub>t {s. wf_heap s} shared_body {s. wf_heap s}"
   unfolding shared_body_def
   apply vcg
   by (auto simp add: Let_def wf_tags_spec)
+
+lemma "\<Gamma> \<turnstile>\<^sub>t
+  {s. wf_heap s}
+  shared_body
+  {s. memory s ! (the_ptr (pointer (root s))) = int_val 400 \<and>
+    writable (root s) s \<and>
+    writable (ptr1 s) s \<and>
+    writable (ptr2 s) s}"
+  unfolding shared_body_def
+  apply vcg
+  by (auto simp add: Let_def)
 
 end

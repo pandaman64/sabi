@@ -63,6 +63,16 @@ definition cell_swap_body :: "(cell_swap_env, 'p, rust_error) com" where
     FI
 "
 
+lemma cell_set_value_safety: "\<Gamma> \<turnstile>\<^sub>t
+  {s. wf_heap s
+  \<and> permission_is SharedReadWrite (self s) s
+  \<and> readable (val s) s}
+  cell_set_body
+  {s. True}"
+  unfolding cell_set_body_def
+  apply vcg
+  by (auto simp add: Let_def)
+
 \<comment> \<open>A proof that shows self and val have the same value after Cell::set.\<close>
 lemma cell_set_value: "\<Gamma> \<turnstile>\<^sub>t
   {s. wf_heap s
@@ -75,6 +85,16 @@ lemma cell_set_value: "\<Gamma> \<turnstile>\<^sub>t
   apply (auto simp add: Let_def)
   by (metis nth_list_update_eq nth_list_update_neq)
 
+lemma cell_get_value_safety: "\<Gamma> \<turnstile>\<^sub>t
+  {s. wf_heap s
+  \<and> permission_is SharedReadWrite (self s) s
+  \<and> writable (return s) s}
+  cell_get_body
+  {s. True}"
+  unfolding cell_get_body_def
+  apply vcg
+  by (auto simp add: Let_def)
+
 \<comment> \<open>A proof that shows self and return have the same value after Cell::get.\<close>
 lemma cell_get_value: "\<Gamma> \<turnstile>\<^sub>t
   {s. wf_heap s
@@ -85,11 +105,21 @@ lemma cell_get_value: "\<Gamma> \<turnstile>\<^sub>t
   unfolding cell_get_body_def
   apply vcg
   apply (auto simp add: Let_def)
-  using permission_is_imp_readable apply simp
   by (metis nth_list_update_eq nth_list_update_neq)
 
+lemma cell_swap_safety: "\<Gamma> \<turnstile>\<^sub>t
+  {s. wf_heap s
+  \<and> permission_is SharedReadWrite (self s) s
+  \<and> permission_is SharedReadWrite (other s) s}
+  cell_swap_body
+  {s. True}"
+  unfolding cell_swap_body_def
+  apply vcg
+  apply (auto simp add: Let_def nth_append)
+  using permission_is_imp_writable writable_pop_tags by auto
+
 \<comment> \<open>A proof that shows Cell::swap(self, other) swaps the value in the memory.\<close>
-lemma cell_swap_value: "\<Gamma> \<turnstile>\<^sub>t
+lemma cell_swap_correctness: "\<Gamma> \<turnstile>\<^sub>t
   {s. wf_heap s
   \<and> permission_is SharedReadWrite (self s) s
   \<and> permission_is SharedReadWrite (other s) s

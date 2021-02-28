@@ -68,7 +68,7 @@ lemma unique_ref:
     "wf_reborrow stack"
     "(Unique, ts) \<in> set stack"
   shows "\<exists>t. ts = {t}"
-using assms(1) assms(2) proof (induction rule: wf_reborrow.induct)
+using assms proof (induction rule: wf_reborrow.induct)
 qed auto
 
 lemma wf_reborrow_pop:
@@ -627,6 +627,14 @@ fun readable :: "tag \<Rightarrow> (ref_kind * tag set) stack \<Rightarrow> bool
   "readable t ((k, ts) # stack) \<longleftrightarrow>
     (if t \<in> ts then True else readable t stack)"
 
+fun readable_axiomatic :: "tag \<Rightarrow> (ref_kind * tag set) stack \<Rightarrow> bool" where
+  "readable_axiomatic t stack \<longleftrightarrow> t \<in> collect_tags stack"
+
+lemma readable_spec':
+  "readable t stack \<longleftrightarrow> readable_axiomatic t stack"
+proof (induction stack)
+qed auto
+
 lemma readable_spec[simp]:
   "readable t stack \<longleftrightarrow> t \<in> collect_tags stack"
 proof (induction stack, auto)
@@ -636,6 +644,55 @@ fun writable :: "tag \<Rightarrow> (ref_kind * tag set) stack \<Rightarrow> bool
   "writable t [] \<longleftrightarrow> False" |
   "writable t ((k, ts) # stack) \<longleftrightarrow>
     (if t \<in> ts then k = Unique \<or> k = SharedReadWrite else writable t stack)"
+
+lemma writable_spec:
+  assumes "wf_reborrow stack"
+  shows "writable t stack \<longleftrightarrow> (\<exists>entry \<in> set stack.
+    (fst entry = Unique \<or> fst entry = SharedReadWrite)
+    \<and> t \<in> snd entry
+  )"
+  (is "?lhs \<longleftrightarrow> ?rhs")
+proof
+  assume "?lhs"
+  then show "?rhs"
+  proof (induction stack)
+    case Nil
+    then show ?case by simp
+  next
+    case (Cons entry stack)
+    consider "t \<in> snd entry" | "t \<notin> snd entry" by auto
+    then show ?case
+    proof (cases)
+      case 1
+      moreover have "fst entry = Unique \<or> fst entry = SharedReadWrite"
+        using Cons by (metis calculation prod.collapse writable.simps(2))
+      ultimately show ?thesis by simp
+    next
+      case 2
+      then have "writable t (entry # stack) = writable t stack"
+        by (metis prod.collapse writable.simps(2))
+      then show ?thesis using Cons by simp
+    qed
+  qed
+next
+  assume "?rhs"
+  then obtain i where
+    "i < length stack"
+    "fst (stack ! i) = Unique \<or> fst (stack ! i) = SharedReadWrite"
+    "t \<in> snd (stack ! i)"
+    by (metis in_set_conv_nth)
+  moreover have "\<And>j. \<lbrakk>j < length stack; t \<in> snd (stack ! j)\<rbrakk> \<Longrightarrow> j = i"
+    using wf_reborrow_tag_position_inj calculation assms by blast
+  ultimately show "?lhs"
+  proof (induction i)
+    case 0
+    then show ?case
+      by (metis assms fst_conv nth_Cons_0 snd_conv wf_reborrow_nonempty writable.elims(3))
+  next
+    case (Suc i)
+    then show ?case sorry
+  qed
+  oops
 
 fun permission_is :: "ref_kind \<Rightarrow> tag \<Rightarrow> (ref_kind * tag set) stack \<Rightarrow> bool" where
   "permission_is k t [] \<longleftrightarrow> False" |
@@ -782,6 +839,97 @@ lemma reborrow_hd:
   shows "k = fst (hd stack') \<and> t \<in> snd (hd stack')"
 using assms proof (cases rule: reborrow.elims)
 qed auto
+
+lemma reborrow_from_unique_new_layer:
+  "reborrow k deriv ((Unique, ts) # stack) = (k, {deriv}) # (Unique, ts) # stack"
+  by (metis (full_types) reborrow.simps(1) reborrow.simps(3) reborrow.simps(5) ref_kind.exhaust)
+
+lemma nonempty_reborrow_comp_if_valid_reborrow:
+  assumes
+    "wf_reborrow stack"
+    "writable orig stack \<or> (readable orig stack \<and> k = SharedReadOnly)"
+    "reborrow_comp k deriv orig stack = stack'"
+  shows "stack' \<noteq> []"
+using assms proof (induction rule: wf_reborrow_induct')
+  case (Root t)
+  have "orig = t"
+  proof (rule disjE[OF Root.prems(1)])
+    assume "writable orig [(Unique, {t})]"
+    then show ?thesis using writable.simps(1) by fastforce
+  next
+    assume "readable orig [(Unique, {t})] \<and> k = SharedReadOnly"
+    then show ?thesis by simp
+  qed
+  then have "stack' = reborrow k deriv [(Unique, {t})]"
+    using Root by simp
+  then show ?case by (simp add: reborrow_from_unique_new_layer)
+next
+  case (UniqueUnique t t' tail)
+  consider "t' = orig" | "t' \<noteq> orig" by auto
+  then show ?case
+  proof (cases)
+    assume "t' = orig"
+    then show ?thesis using UniqueUnique reborrow_from_unique_new_layer by auto
+  next
+    assume "t' \<noteq> orig"
+    moreover have "stack' = reborrow_comp k deriv orig ((Unique, {t}) # tail)"
+      using UniqueUnique.prems(2) calculation by auto
+    ultimately show ?thesis
+      using UniqueUnique by simp
+  qed
+next
+  case (UniqueSRW t ts' tail)
+  consider "orig \<in> ts'" | "orig \<notin> ts'" by auto
+  then show ?case
+  proof (cases)
+    assume "orig \<in> ts'"
+    then have *: "stack' = reborrow k deriv ((SharedReadWrite, ts') # (Unique, {t}) # tail)"
+      using UniqueSRW by simp
+    show ?thesis
+    proof (cases k)
+    qed (auto simp add: UniqueSRW *)
+  next
+    assume "orig \<notin> ts'"
+    then show ?thesis using UniqueSRW by simp
+  qed
+next
+  case (UniqueSRO t ts' tail)
+  consider "orig \<in> ts'" | "orig \<notin> ts'" by auto
+  then show ?case
+  proof (cases)
+    assume "orig \<in> ts'"
+    moreover have "k = SharedReadOnly"
+      using UniqueSRO calculation by simp
+    ultimately show ?thesis using UniqueSRO by auto
+  next
+    assume "orig \<notin> ts'"
+    then show ?thesis using UniqueSRO by simp
+  qed
+next
+  case (SRWUnique ts t' tail)
+  consider "orig = t'" | "orig \<noteq> t'" by auto
+  then show ?case
+  proof (cases)
+    assume "orig = t'"
+    then show ?thesis using SRWUnique reborrow_from_unique_new_layer by auto
+  next
+    assume "orig \<noteq> t'"
+    then show ?thesis using SRWUnique by simp
+  qed
+next
+  case (SRWSRO ts ts' tail)
+  consider "orig \<in> ts'" | "orig \<notin> ts'" by auto
+  then show ?case
+  proof (cases)
+    assume "orig \<in> ts'"
+    moreover have "k = SharedReadOnly"
+      using SRWSRO calculation by simp
+    ultimately show ?thesis using SRWSRO by auto
+  next
+    assume "orig \<notin> ts'"
+    then show ?thesis using SRWSRO by simp
+  qed
+qed
 
 fun_cases reborrow_elims_Unique[case_names _ UniqueUnique UniqueSRW]:
   "reborrow Unique t stack = (Unique, ts) # stack'"
@@ -1047,6 +1195,16 @@ next
   qed
 qed
 
+lemma decomp_pop_tags_writable_obtains:
+  assumes
+    "writable t stack"
+    "pop_tags t stack = stack'"
+    "wf_reborrow stack"
+  obtains
+    rest where "stack' = (Unique, {t}) # rest" |
+    rest ts where "stack' = (SharedReadWrite, ts) # rest" "t \<in> ts"
+  using assms decomp_pop_tags_writable by blast
+
 lemma decomp_reborrow_comp_writable:
   assumes
     "writable t stack"
@@ -1115,6 +1273,24 @@ lemma decomp_reborrow_comp_writable_elims[
   shows "P"
 using assms proof (cases rule: decomp_reborrow_comp_writable_elims')
 qed auto
+
+lemma decomp_reborrow_comp_writable_elims''[
+  consumes 3,
+  case_names UniqueUnique SRWUnique SROUnique UniqueSRW SRWSRW SROSRW
+  ]:
+  assumes
+    "writable t stack"
+    "reborrow_comp k t' t stack = stack'"
+    "wf_reborrow stack"
+  obtains
+    rest where "k = Unique" "stack' = (Unique, {t'}) # (Unique, {t}) # rest" |
+    rest where "k = SharedReadWrite" "stack' = (SharedReadWrite, {t'}) # (Unique, {t}) # rest" |
+    rest where "k = SharedReadOnly" "stack' = (SharedReadOnly, {t'}) # (Unique, {t}) # rest" |
+    rest ts where "k = Unique" "stack' = (Unique, {t'}) # (SharedReadWrite, ts) # rest" "t \<in> ts" |
+    rest ts where "k = SharedReadWrite" "stack' = (SharedReadWrite, insert t' ts) # rest" "t \<in> ts" |
+    rest ts where "k = SharedReadOnly" "stack' = (SharedReadOnly, {t'}) # (SharedReadWrite, ts) # rest" "t \<in> ts"
+  using assms
+  sorry
 
 lemma writable_reborrow_comp:
   assumes

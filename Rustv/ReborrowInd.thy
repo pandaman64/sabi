@@ -176,9 +176,10 @@ fun reborrow_ind
   "reborrow_ind k deriv orig stack = (THE stack'. reborrow' k deriv orig stack stack')"
 
 lemma reborrow_by_comp[simp, intro]:
-  "reborrow' k deriv orig stack stack' \<Longrightarrow> reborrow_comp k deriv orig stack = stack'"
-proof (induction rule: reborrow'.induct)
-qed simp_all
+  assumes "reborrow' k deriv orig stack stack'"
+  shows "reborrow_comp k deriv orig stack = stack'"
+using assms proof (induction rule: reborrow'.induct)
+qed auto
 
 lemma the_reborrow_by_comp[simp, intro]:
   assumes "reborrow' k deriv orig stack (reborrow_comp k deriv orig stack)"
@@ -472,6 +473,14 @@ next
   qed
 qed
 
+lemma reborrow_equivalence:
+  assumes
+    "wf_reborrow stack"
+    "writable orig stack \<or> (readable orig stack \<and> k = SharedReadOnly)"
+  shows "reborrow_comp k deriv orig stack = stack' \<longleftrightarrow> reborrow' k deriv orig stack stack'"
+  using assms reborrow_by_comp reborrow_comp_by_ind nonempty_reborrow_comp_if_valid_reborrow
+  by fast
+
 lemma wf_reborrow_pop''[
   consumes 1,
   case_names Root Reborrow
@@ -486,5 +495,28 @@ lemma wf_reborrow_pop''[
     "wf_reborrow tail"
   by (metis assms last.simps neq_Nil_conv wf_reborrow_pop'
       wf_reborrow_root wf_reborrow_structure_elims(1))
+
+lemma writable_reborrow_comp_derived':
+  assumes
+    "writable t stack"
+    "reborrow_comp k t' t stack = stack'"
+    "wf_reborrow stack"
+    "k = Unique \<or> k = SharedReadWrite"
+  shows "writable t' stack'"
+proof -
+  have "reborrow' k t' t stack stack'"
+    using assms reborrow_equivalence by simp
+  then show ?thesis
+  using assms proof (induction)
+    case (DerivPop k deriv orig tail stack entry)
+    moreover have "writable orig tail"
+      using writable_tl DerivPop by fastforce
+    moreover have "wf_reborrow tail"
+      using reborrow'_nonempty_src wf_reborrow_pop' calculation by blast
+    moreover have "reborrow_comp k deriv orig tail = stack"
+      using reborrow_equivalence calculation by simp
+    ultimately show ?case by simp
+  qed auto
+qed
 
 end
