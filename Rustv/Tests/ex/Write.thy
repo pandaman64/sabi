@@ -49,7 +49,7 @@ lemma "\<Gamma> \<turnstile>\<^sub>t {s. writable (p s) s \<and> wf_heap s} deri
   using writable_pop_tags by auto
 
 definition reb_body :: "(deriv_env, 'p, rust_error) com" where
-  "reb_body = reborrow_stmt Unique p (\<lambda>s r. s\<lparr> x := r \<rparr>)"
+  "reb_body == reborrow_stmt Unique p (\<lambda>s r. s\<lparr> x := r \<rparr>)"
 
 lemma "\<Gamma> \<turnstile>\<^sub>t
   {s. writable (p s) s \<and> wf_heap s}
@@ -60,5 +60,15 @@ lemma "\<Gamma> \<turnstile>\<^sub>t
   apply (auto simp add: Let_def)
   apply (rule writable_reborrow_comp_derived, simp_all)
   using wf_tags_spec by auto
+
+definition write_bench :: "(deriv_env, 'p, rust_error) com" where
+  "write_bench == write_imm p (int_val 100)"
+
+lemma "\<Gamma> \<turnstile>\<^sub>t
+  {s. writable (p s) s \<and> wf_heap s}
+  write_bench
+  {s. writable (p s) s}"
+  unfolding write_bench_def
+  oops
 
 end
