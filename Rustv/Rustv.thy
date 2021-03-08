@@ -329,7 +329,7 @@ lemma collect_tags_reborrow_subset:
   using collect_tags_update_subset reborrow_comp_subset collect_tags_spec' nth_mem by blast
 
 lemma collect_tags_reborrow_subset':
-  "\<lbrakk>the_ptr (pointer r) < length (tags s)\<rbrakk> 
+  "\<lbrakk>the_ptr (pointer r) < length (tags s)\<rbrakk>
   \<Longrightarrow> collect_tags (tags (snd (reborrow k r s))) \<subseteq> {new_tag s} \<union> collect_tags (tags s)"
   apply (simp add: Let_def del: reborrow_comp.simps)
   using collect_tags_update_subset reborrow_comp_subset collect_tags_spec' nth_mem by blast
