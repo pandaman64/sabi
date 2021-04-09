@@ -58,6 +58,19 @@ lemma rustv_swap_correctness: "\<Gamma> \<turnstile>\<^sub>t
   apply (auto simp add: Let_def nth_append)
   using writable_pop_tags by auto
 
+lemma rustv_swap_values_overlapping: "\<Gamma> \<turnstile>\<^sub>t
+  {s. wf_heap s
+  \<and> writable (x s) s \<and> writable (y s) s
+  \<and> (ptr_eq (x s) (y s))
+  \<and> memread (x s) s = X \<and> memread (y s) s = Y}
+  rustv_swap_body
+  {s. memread (x s) s = Y \<and> memread (y s) s = X}"
+  unfolding rustv_swap_body_def
+  apply vcg
+  apply (auto simp add: Let_def nth_append)
+  using writable_pop_tags apply auto
+  oops
+
 lemma rustv_swap_safety': "\<Gamma> \<turnstile>\<^sub>t
   {s. wf_heap s
   \<and> writable (x s) s \<and> writable (y s) s
