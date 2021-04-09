@@ -408,4 +408,15 @@ lemma lemma_for_write_ex:
   using assms lemma_for_write_ex1
   by (metis Suc_n_not_le_n in_set_conv_nth length_map max_list_ge nth_map subsetD the_tag.simps)
 
+lemma wf_tags_in_same_layer_dropWhile:
+  fixes x y tags
+  assumes
+    "wf_tags tags"
+    "ptr_eq x y"
+    "the_ptr (pointer y) < length tags"
+    "in_same_layer (tag x) (tag y) (tags ! the_ptr (pointer y))"
+  shows "dropWhile (\<lambda>entry. tag x \<notin> snd entry) (tags ! the_ptr (pointer y))
+        = dropWhile (\<lambda>entry. tag y \<notin> snd entry) (tags ! the_ptr (pointer y))"
+  using assms in_same_layer_pop_tags wf_tags_spec by fastforce
+
 end

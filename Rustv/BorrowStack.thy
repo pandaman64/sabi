@@ -1322,4 +1322,96 @@ lemma writable_imp_in_tags[intro]:
   shows "\<exists>entry \<in>set stack. t \<in> snd entry"
   using assms writable_in_collect_tags by auto
 
+fun in_same_layer :: "tag \<Rightarrow> tag \<Rightarrow> (ref_kind * tag set) stack \<Rightarrow> bool" where
+  "in_same_layer p q [] = False"
+| "in_same_layer p q (entry # stack) =
+    ((p \<in> snd entry \<and> q \<in> snd entry) \<or> in_same_layer p q stack)"
+
+lemma in_same_layer_collect_tags1:
+  assumes "in_same_layer p q stack"
+  shows "p \<in> collect_tags stack"
+using assms proof (induction stack)
+qed auto
+
+lemma in_same_layer_collect_tags2:
+  assumes "in_same_layer p q stack"
+  shows "q \<in> collect_tags stack"
+using assms proof (induction stack)
+qed auto
+
+lemma in_same_layer_same_pos:
+  assumes
+    "in_same_layer p q stack"
+  shows "\<exists>i. i < length stack \<and> p \<in> snd (stack ! i) \<and> q \<in> snd (stack ! i)"
+using assms proof (induction stack)
+  case Nil
+  then show ?case by simp
+next
+  case (Cons entry stack)
+  then show ?case by fastforce
+qed
+
+lemma in_same_layer_cases:
+  assumes
+    "wf_reborrow stack"
+    "in_same_layer p q stack"
+  obtains
+    "p \<in> snd (hd stack) \<and> q \<in> snd (hd stack)"
+  | "p \<notin> snd (hd stack) \<and> q \<notin> snd (hd stack) \<and> in_same_layer p q (tl stack)"
+using assms proof (induction rule: wf_reborrow_induct')
+  case (Root t)
+  then show ?case by simp
+next
+  case (UniqueUnique t t' tail)
+  then show ?case
+    by (metis ReborrowUniqueUnique in_same_layer.simps(2) in_same_layer_collect_tags1
+        in_same_layer_collect_tags2 insert_disjoint(2) insert_is_Un list.sel(1) list.sel(3)
+        wf_reborrow_top_tag_notin)
+next
+  case (UniqueSRW t ts' tail)
+  then show ?case
+    by (metis assms(1) assms(2) hd_Cons_tl in_same_layer.simps(1) in_same_layer.simps(2)
+        in_same_layer_collect_tags1 in_same_layer_collect_tags2 that(1) that(2)
+        wf_reborrow_top_tag_notin)
+next
+  case (UniqueSRO t ts' tail)
+  then show ?case
+    by (metis assms(1) assms(2) hd_Cons_tl in_same_layer.simps(1) in_same_layer.simps(2)
+        in_same_layer_collect_tags1 in_same_layer_collect_tags2 that(1) that(2)
+        wf_reborrow_top_tag_notin)
+next
+  case (SRWUnique ts t' tail)
+  then show ?case
+    by (metis Un_iff empty_iff in_same_layer.simps(2) in_same_layer_collect_tags1
+        in_same_layer_collect_tags2 insert_disjoint(2) insert_iff list.sel(1) list.sel(3) snd_conv)
+next
+  case (SRWSRO ts ts' tail)
+  then show ?case
+    by (metis assms(1) assms(2) in_same_layer.elims(2) in_same_layer_collect_tags1
+        in_same_layer_collect_tags2 list.sel(1) list.sel(3) that(1) that(2)
+        wf_reborrow_top_tag_notin)
+qed
+
+lemma in_same_layer_pop_tags:
+  "\<lbrakk>wf_reborrow stack; in_same_layer p q stack\<rbrakk> \<Longrightarrow> pop_tags p stack = pop_tags q stack"
+proof (induction stack)
+  case Nil
+  then show ?case by simp
+next
+  case (Cons entry stack)
+  consider "p \<in> snd entry \<and> q \<in> snd entry"
+    | "p \<notin> snd entry \<and> q \<notin> snd entry \<and> in_same_layer p q stack"
+    by (metis in_same_layer.simps(2) in_same_layer_cases Cons.prems list.sel(1))
+  then show ?case
+  proof (cases)
+    assume "p \<in> snd entry \<and> q \<in> snd entry"
+    then show ?thesis by simp
+  next
+    assume "p \<notin> snd entry \<and> q \<notin> snd entry \<and> in_same_layer p q stack"
+    moreover have "wf_reborrow stack"
+      using Cons.prems wf_reborrow_pop' calculation in_same_layer.simps(1) by blast
+    ultimately show ?thesis using Cons.IH by simp
+  qed
+qed
+
 end

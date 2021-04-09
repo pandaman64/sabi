@@ -58,4 +58,22 @@ lemma rustv_swap_correctness: "\<Gamma> \<turnstile>\<^sub>t
   apply (auto simp add: Let_def nth_append)
   using writable_pop_tags by auto
 
+lemma rustv_swap_safety': "\<Gamma> \<turnstile>\<^sub>t
+  {s. wf_heap s
+  \<and> writable (x s) s \<and> writable (y s) s
+  \<and> ptr_eq (x s) (y s)
+  \<and> in_same_layer (tag (x s)) (tag (y s)) (tags s ! (the_ptr (pointer (x s))))}
+  rustv_swap_body
+  {s. True}"
+  unfolding rustv_swap_body_def
+  apply vcg
+  apply (auto simp add: Let_def nth_append)
+  (* sledgehammer *)
+  using writable_pop_tags apply auto[1]
+  apply (simp_all only: wf_tags_in_same_layer_dropWhile)
+  (* sledgehammer *)
+   apply (metis UnE in_same_layer_same_pos nth_mem set_append set_takeWhileD takeWhile_dropWhile_id)
+  (* sledgehammer *)
+  using writable_pop_tags by auto
+
 end
